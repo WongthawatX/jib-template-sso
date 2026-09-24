@@ -8,16 +8,8 @@ import { getSsoUserInfo } from "@/services/apiSSOService"
 import type { SsoUserInfo } from "@/services/apiSSOService"
 import type { Permission } from "@/utils/permissions"
 
-type UserDetail = SsoUserInfo & {
-    id: string;
-    username: string;
-    fullname: string;
-    full_name: string;
-    role: string;
-}
-
 type AppState = {
-    userDetail: UserDetail | null;
+    userDetail: SsoUserInfo | null;
     accessToken: string;
     expiresAt: number | null;
     permissions: Permission[];
@@ -78,25 +70,17 @@ export const useAppStore = create<AppState>(( set, get ) => ({
         const expiresAt = getExpiration(token, expiresIn)
         if ( expiresAt !== null && expiresAt <= Date.now() ) throw new Error("SSO session expired")
         const permissions = user.permissions ?? []
-        const userDetail: UserDetail = {
-            ...user,
-            id: user.user_id ?? user.sub,
-            username: user.preferred_username ?? user.employee_id ?? user.sub,
-            fullname: user.name ?? "",
-            full_name: user.name ?? "",
-            role: user.system_role ?? user.roles?.[0] ?? "user",
-        }
         for ( const key of [ "accessToken", "userData", "permissions", "refreshToken", "expiresAt" ] ) {
             storage.removeItem(key)
         }
         sessionStorageStore.setItem("accessToken", token)
-        sessionStorageStore.setItem("userData", JSON.stringify(userDetail))
+        sessionStorageStore.setItem("userData", JSON.stringify(user))
         sessionStorageStore.setItem("permissions", JSON.stringify(permissions))
         sessionStorageStore.setItem("expiresAt", JSON.stringify(expiresAt))
         if ( refreshToken ) sessionStorageStore.setItem("refreshToken", refreshToken)
         else sessionStorageStore.removeItem("refreshToken")
         sessionVersion += 1
-        set({ accessToken: token, userDetail, permissions, expiresAt, isInitialized: true })
+        set({ accessToken: token, userDetail: user, permissions, expiresAt, isInitialized: true })
     },
 
     initializeSession: async () => {

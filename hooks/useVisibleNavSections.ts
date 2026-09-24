@@ -16,7 +16,7 @@ import type { NavSection } from "@/utils/links"
  */
 export function useVisibleNavSections(): NavSection[] {
     const permissions = useAppStore(( state ) => state.permissions )
-    const role = useAppStore(( state ) => state.userDetail?.role )
+    const role = useAppStore(( state ) => state.userDetail?.system_role ?? state.userDetail?.roles?.[0] )
     const admin = isAdminRole( role )
 
     return useMemo(() => {

@@ -1,21 +1,25 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { LogOutIcon, User, UserIcon } from "lucide-react"
+import { KeyRoundIcon, LogOutIcon, User, UserIcon } from "lucide-react"
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu"
 import { useAppStore } from "@/store/useAppStore"
+import { ChangePasswordDialog } from "../dialog"
 
 export default function NavbarUserMenu() {
     const router = useRouter()
     const userDetail = useAppStore(( state ) => state.userDetail)
     const logout = useAppStore(( state ) => state.logout)
+    const [ isChangePasswordOpen, setIsChangePasswordOpen ] = useState<boolean>(false)
 
-    const displayName = userDetail?.fullname || userDetail?.full_name || "ผู้ใช้งาน"
-    const displayRole = userDetail?.role || "-"
-    const avatarUrl = process.env.NEXT_PUBLIC_API_URL && userDetail?.username
-        ? `${process.env.NEXT_PUBLIC_API_URL}/intranet-api/storage/view?bucket=images&object=${encodeURIComponent(`JIBHR/img_hr/${userDetail.username}.jpg`)}`
+    const displayName = userDetail?.name || "ผู้ใช้งาน"
+    const displayRole = userDetail?.system_role ?? userDetail?.roles?.[0] ?? "-"
+    const username = userDetail?.preferred_username ?? userDetail?.employee_id ?? userDetail?.sub
+    const avatarUrl = process.env.NEXT_PUBLIC_API_URL && username
+        ? `${process.env.NEXT_PUBLIC_API_URL}/intranet-api/storage/view?bucket=images&object=${encodeURIComponent(`JIBHR/img_hr/${username}.jpg`)}`
         : undefined
 
     const handleLogout = () => {
@@ -62,6 +66,9 @@ export default function NavbarUserMenu() {
                     <DropdownMenuItem onClick={() => router.push("/profile")}>
                         <UserIcon /> ข้อมูลผู้ใช้
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsChangePasswordOpen(true)}>
+                        <KeyRoundIcon /> เปลี่ยนรหัสผ่าน
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onClick={handleLogout}>
                         <LogOutIcon /> ออกจากระบบ
@@ -69,7 +76,7 @@ export default function NavbarUserMenu() {
                     </DropdownMenuGroup>
                 </DropdownMenuContent>
             </DropdownMenu>
+            <ChangePasswordDialog open={isChangePasswordOpen} onOpenChange={setIsChangePasswordOpen} />
         </div>
     )
 }
-

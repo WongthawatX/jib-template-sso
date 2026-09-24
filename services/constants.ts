@@ -7,4 +7,5 @@ export const path = {
     SSO_TOKEN: `${SSO_API}/token`,
     SSO_REFRESH: `${SSO_API}/token/refresh`,
     SSO_USERINFO: `${SSO_API}/userinfo`,
+    SSO_CHANGE_PASSWORD: `${SSO_API}/me/password`,
 }

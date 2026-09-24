@@ -142,6 +142,28 @@ test("token exchange sends PKCE as form data and validates API responses", async
     await assert.rejects(invalid.load("services/apiSSOService").exchangeSsoAuthorizationCode("c", "v", "u"))
 })
 
+test("change password sends an authenticated PATCH request", async () => {
+    let request
+    const rt = runtime({ api: "https://sso.test/v1", fetcher: async ( url, options ) => {
+        request = { url, options }
+        return { ok: true, json: async () => ({ success: true, reauthentication_required: true }) }
+    } })
+
+    const result = await rt.load("services/apiSSOService").changeOwnSsoPassword("access-token", {
+        currentPassword: "old-password",
+        newPassword: "new-password",
+    })
+
+    assert.equal(request.url, "https://sso.test/v1/me/password")
+    assert.equal(request.options.method, "PATCH")
+    assert.equal(request.options.headers.Authorization, "Bearer access-token")
+    assert.deepEqual(JSON.parse(request.options.body), {
+        current_password: "old-password",
+        new_password: "new-password",
+    })
+    assert.equal(result.reauthenticationRequired, true)
+})
+
 test("UAT signin returns to the template callback and exchanges the original PKCE verifier", async () => {
     const api = "https://api-uat-intranet.jibcomputer.group/jib-sso/v1"
     const signin = "https://uat-intranet.jibcomputer.group/nexus-intralogin/signin"
@@ -159,7 +181,7 @@ test("UAT signin returns to the template callback and exchanges the original PKC
                     ? { error: "login_required", authorizationRequestId: "new-uat-request", expiresIn: 300 }
                     : url === `${api}/token`
                         ? { access_token: "uat-token", token_type: "Bearer", expires_in: 3600 }
-                        : { sub: "employee-123", name: "SSO User", permissions: [] }
+                        : { sub: "employee-123", name: "SSO User", permissions: [ "*", "DASHBOARD.view" ] }
                 return { ok: true, json: async () => data }
             },
         })
@@ -192,7 +214,9 @@ test("UAT signin returns to the template callback and exchanges the original PKC
         assert.equal(requests[1].options.body.has("client_secret"), false)
         assert.equal(requests[2].options.headers.Authorization, "Bearer uat-token")
         assert.equal(store.getState().accessToken, "uat-token")
-        assert.equal(store.getState().userDetail.fullname, "SSO User")
+        assert.equal(store.getState().userDetail.name, "SSO User")
+        assert.deepEqual(store.getState().permissions, [ "*", "DASHBOARD.view" ])
+        assert.deepEqual(JSON.parse(rt.sessionStorage.getItem("template:permissions")), [ "*", "DASHBOARD.view" ])
         assert.equal(sso.getSsoAuthorization(), null)
         assert.equal(authorization.returnTo, "/profile")
     }
@@ -227,7 +251,7 @@ test("session initializes only after SSO verification and logout preserves sibli
     assert.equal(calls, 1)
     resolveUser({ sub: "123", name: "Test User", permissions: [] })
     await Promise.all([ first, second ])
-    assert.equal(store.getState().userDetail.fullname, "Test User")
+    assert.equal(store.getState().userDetail.name, "Test User")
     assert.equal(store.getState().accessToken, "opaque-token")
     store.getState().logout()
     assert.equal(store.getState().accessToken, "")

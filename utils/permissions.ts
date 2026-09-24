@@ -8,7 +8,7 @@ import type { ComponentType } from "react"
  * ค่ามาจาก backend เป็น 0/1 (การกำหนดสิทธิ์ทำจากโปรแกรมอื่น ฝั่งนี้อ่านอย่างเดียว)
  * backend อาจแนบ menu_name มาด้วย (optional) — ถ้ามีจะใช้เป็น label ก่อน
  */
-export type Permission = {
+export type MenuPermission = {
     menu_id: number;
     menu_name?: string;
     views: number;
@@ -18,6 +18,8 @@ export type Permission = {
     approves: number;
     printed: number;
 }
+
+export type Permission = string | MenuPermission
 
 /** ชื่อ action (key ตรงกับ field ใน Permission) */
 export type PermissionAction = "views" | "creates" | "edits" | "deletes" | "approves" | "printed"
@@ -63,7 +65,7 @@ export const MENU_LABELS: Record<number, string> = {
 }
 
 /** คืนชื่อเมนูสำหรับแสดงผล: menu_name (จาก backend) → MENU_LABELS → fallback "เมนู #id" */
-export const getMenuLabel = ( permission: Permission ): string => {
+export const getMenuLabel = ( permission: MenuPermission ): string => {
     if ( permission.menu_name ) return permission.menu_name
     return MENU_LABELS[permission.menu_id] ?? `เมนู #${permission.menu_id}`
 }
@@ -91,6 +93,10 @@ export const getStoredPermissions = (): Permission[] => {
  * @example if ( hasPermission(permissions, 1, "creates") ) { ...show create button... }
  */
 export const hasPermission = ( permissions: Permission[], menuId: number, action: PermissionAction ): boolean => {
-    const menu = permissions.find(( p ) => p.menu_id === menuId )
+    if ( permissions.includes("*") ) return true
+
+    const menu = permissions.find(( permission ): permission is MenuPermission =>
+        typeof permission !== "string" && permission.menu_id === menuId
+    )
     return menu ? menu[action] === 1 : false
 }

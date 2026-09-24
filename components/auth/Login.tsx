@@ -18,6 +18,7 @@ export default function Login() {
     const [ errorMessage, setErrorMessage ] = useState<string>("")
     const [ isLoading, setIsLoading ] = useState<boolean>(false)
     const isLoggedOut = searchParams.get("loggedOut") === "1"
+    const isPasswordChanged = searchParams.get("passwordChanged") === "1"
     const returnTo = getSafeReturnTo(searchParams.get("returnTo") ?? "/dashboard")
 
     const handleStartSso = useCallback(async () => {
@@ -37,10 +38,10 @@ export default function Login() {
     }, [ returnTo, router ])
 
     useEffect(() => {
-        if ( hasStarted.current || isLoggedOut ) return
+        if ( hasStarted.current || isLoggedOut || isPasswordChanged ) return
         hasStarted.current = true
         void handleStartSso()
-    }, [ handleStartSso, isLoggedOut ])
+    }, [ handleStartSso, isLoggedOut, isPasswordChanged ])
 
     return (
         <main className="flex min-h-svh items-center justify-center bg-linear-to-br from-background via-accent/50 to-background p-4">
@@ -49,12 +50,22 @@ export default function Login() {
                     <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                         { isLoading ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <ShieldCheck aria-hidden="true" /> }
                     </div>
-                    <CardTitle>{ errorMessage ? "เข้าสู่ระบบไม่สำเร็จ" : isLoggedOut ? "ออกจากระบบแล้ว" : "กำลังไปยัง JIB SSO" }</CardTitle>
+                    <CardTitle>
+                        { errorMessage
+                            ? "เข้าสู่ระบบไม่สำเร็จ"
+                            : isPasswordChanged
+                                ? "เปลี่ยนรหัสผ่านสำเร็จ"
+                                : isLoggedOut
+                                    ? "ออกจากระบบแล้ว"
+                                    : "กำลังไปยัง JIB SSO" }
+                    </CardTitle>
                     <CardDescription aria-live="polite">
-                        { errorMessage || "เข้าสู่ระบบด้วยบัญชีพนักงานผ่าน JIB SSO" }
+                        { errorMessage || ( isPasswordChanged
+                            ? "กรุณาเข้าสู่ระบบอีกครั้งด้วยรหัสผ่านใหม่"
+                            : "เข้าสู่ระบบด้วยบัญชีพนักงานผ่าน JIB SSO" ) }
                     </CardDescription>
                 </CardHeader>
-                { (errorMessage || isLoggedOut) && (
+                { (errorMessage || isLoggedOut || isPasswordChanged) && (
                     <CardContent>
                         <Button className="w-full" disabled={isLoading} onClick={() => void handleStartSso()}>
                             เข้าสู่ระบบด้วย JIB SSO

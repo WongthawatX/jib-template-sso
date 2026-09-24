@@ -5,8 +5,14 @@ import type { Permission } from "@/utils/permissions"
 
 const request = async ( url: string, options?: RequestInit ): Promise<{ data: unknown }> => {
     const response = await fetch(url, { ...options, cache: "no-store", signal: AbortSignal.timeout(15000) })
-    if ( !response.ok ) throw new Error(`SSO request failed (${response.status})`)
-    return { data: await response.json() }
+    const data: unknown = await response.json().catch(() => null)
+    if ( !response.ok ) {
+        const message = isRecord(data)
+            ? [ data.message, data.detail, data.error ].find(( value ): value is string => typeof value === "string")
+            : undefined
+        throw new Error(message ?? `SSO request failed (${response.status})`)
+    }
+    return { data }
 }
 
 export type SsoTokenResponse = {
@@ -24,6 +30,7 @@ export type SsoUserInfo = {
     preferred_username?: string;
     name?: string;
     email?: string;
+    phone?: string;
     department?: string;
     branch?: string;
     system_role?: string;
@@ -51,18 +58,29 @@ export type SsoAuthorizationRequestResult =
         redirectUrl: string;
     }
 
+export type ChangeOwnPasswordInput = {
+    currentPassword: string;
+    newPassword: string;
+}
+
+export type ChangeOwnPasswordResult = {
+    success: true;
+    reauthenticationRequired: boolean;
+}
+
 const isRecord = ( value: unknown ): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
 const isPermission = ( value: unknown ): value is Permission =>
-    isRecord(value) &&
-    typeof value.menu_id === "number" &&
-    typeof value.views === "number" &&
-    typeof value.creates === "number" &&
-    typeof value.edits === "number" &&
-    typeof value.deletes === "number" &&
-    typeof value.approves === "number" &&
-    typeof value.printed === "number"
+    ( typeof value === "string" && value.length > 0 ) ||
+    ( isRecord(value) &&
+        typeof value.menu_id === "number" &&
+        typeof value.views === "number" &&
+        typeof value.creates === "number" &&
+        typeof value.edits === "number" &&
+        typeof value.deletes === "number" &&
+        typeof value.approves === "number" &&
+        typeof value.printed === "number" )
 
 const readOptionalString = ( data: Record<string, unknown>, key: string ): string | undefined =>
     typeof data[key] === "string" ? data[key] : undefined
@@ -122,6 +140,36 @@ export const refreshSsoToken = async ( refreshToken: string ): Promise<SsoTokenR
     return parseSsoTokenResponse(response.data, "Invalid SSO refresh response")
 }
 
+export const changeOwnSsoPassword = async (
+    accessToken: string,
+    input: ChangeOwnPasswordInput,
+): Promise<ChangeOwnPasswordResult> => {
+    const response = await request(path.SSO_CHANGE_PASSWORD, {
+        method: "PATCH",
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            current_password: input.currentPassword,
+            new_password: input.newPassword,
+        }),
+    })
+
+    if (
+        !isRecord(response.data) ||
+        response.data.success !== true ||
+        typeof response.data.reauthentication_required !== "boolean"
+    ) {
+        throw new Error("Invalid SSO change password response")
+    }
+
+    return {
+        success: true,
+        reauthenticationRequired: response.data.reauthentication_required,
+    }
+}
+
 ////////////////////////////// GET //////////////////////////////
 export const createSsoAuthorizationRequest = async (
     input: SsoAuthorizationRequestInput,
@@ -176,6 +224,7 @@ export const getSsoUserInfo = async ( accessToken: string ): Promise<SsoUserInfo
         preferred_username: readOptionalString(response.data, "preferred_username"),
         name: readOptionalString(response.data, "name"),
         email: readOptionalString(response.data, "email"),
+        phone: readOptionalString(response.data, "phone"),
         department: readOptionalString(response.data, "department"),
         branch: readOptionalString(response.data, "branch"),
         system_role: readOptionalString(response.data, "system_role"),

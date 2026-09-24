@@ -5,12 +5,12 @@ import { useAppStore } from "@/store/useAppStore"
 export default function UserProfile() {
     const user = useAppStore(( state ) => state.userDetail)
     const fields = [
-        [ "ชื่อ", user?.fullname ],
-        [ "รหัสพนักงาน", user?.employee_id ?? user?.username ],
+        [ "ชื่อ", user?.name ],
+        [ "รหัสพนักงาน", user?.employee_id ?? user?.preferred_username ?? user?.sub ],
         [ "อีเมล", user?.email ],
         [ "แผนก", user?.department ],
         [ "สาขา", user?.branch ],
-        [ "บทบาท", user?.role ],
+        [ "บทบาท", user?.system_role ?? user?.roles?.[0] ],
     ]
 
     return (
