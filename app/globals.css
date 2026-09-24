@@ -1,26 +1,161 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+    --font-sans: var(--font-kanit), ui-sans-serif, system-ui, sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-bottom: var(--sidebar-bottom);
+    --color-sidebar: var(--sidebar);
+    --color-nav-accent: var(--nav-accent);
+    --color-nav-accent-foreground: var(--nav-accent-foreground);
+    --color-nav-indicator: var(--nav-indicator);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+    /* ─── Light theme — โทนน้ำเงิน-ม่วง (indigo/violet) ─── */
+    /* แบรนด์หลัก: ink #191960 (primary), accent-violet #5c5ce0 (ring/accent) */
+    --background: oklch(0.976 0.004 285);       /* #f7f7fb */
+    --foreground: oklch(0.185 0.05 285);        /* #12122a */
+    --card: oklch(1 0 0);                        /* #ffffff */
+    --card-foreground: oklch(0.185 0.05 285);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.185 0.05 285);
+    --primary: oklch(0.245 0.12 283);           /* #191960 */
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.925 0.015 285);        /* #e8e8f2 */
+    --secondary-foreground: oklch(0.245 0.12 283);
+    --muted: oklch(0.93 0.013 285);             /* #ebebf4 */
+    --muted-foreground: oklch(0.47 0.03 285);   /* #5c5c78 */
+    --accent: oklch(0.9 0.03 285);              /* #e0e0f4 */
+    --accent-foreground: oklch(0.245 0.12 283);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.885 0.01 285);            /* #dcdce8 */
+    --input: oklch(0.885 0.01 285);
+    --ring: oklch(0.55 0.19 278);               /* #5c5ce0 */
+    --chart-1: oklch(0.55 0.18 285);
+    --chart-2: oklch(0.62 0.14 250);
+    --chart-3: oklch(0.45 0.12 270);
+    --chart-4: oklch(0.72 0.12 300);
+    --chart-5: oklch(0.58 0.16 265);
+    --radius: 0.625rem;
+
+    /* Sidebar: navy/indigo เป็นสีเข้มทั้งใน light และ dark mode ตาม design */
+    /* gradient ของแถบ sidebar: --sidebar = สีด้านบน, --sidebar-bottom = สีด้านล่าง */
+    --sidebar: oklch(0.245 0.12 283);           /* #191960 เข้ม */
+    --sidebar-bottom: oklch(0.4 0.19 278);      /* #4545c7 สว่างขึ้น */
+    --sidebar-foreground: oklch(0.97 0.01 285);
+    --sidebar-primary: oklch(1 0 0);
+    --sidebar-primary-foreground: oklch(0.245 0.12 283);
+    --sidebar-accent: oklch(1 0 0 / 14%);
+    --sidebar-accent-foreground: oklch(1 0 0);
+    --sidebar-border: oklch(1 0 0 / 14%);
+    --sidebar-ring: oklch(0.55 0.19 278);
+
+    /* Nav panel (การ์ดเมนูย่อย): พื้นเป็น --card จึงต้องมี accent แยกที่พลิกค่าตามธีม
+       จะใช้ --sidebar ตรงๆ ไม่ได้ เพราะมันเป็นน้ำเงินเข้มทั้งสองธีม จะจมหายบนการ์ดเข้มของ dark mode */
+    --nav-accent: oklch(0.55 0.19 278 / 12%);
+    --nav-accent-foreground: oklch(0.4 0.19 278);
+    --nav-indicator: oklch(0.55 0.19 278);
+
+    /* Hero gradient (CardWelcome): กรมท่าเข้ม → กรมท่าอ่อนลง → ม่วงเข้ม เหมือนกันทั้ง 2 ธีม
+       เพื่อให้ตัวหนังสือ/ปุ่มสีขาวที่วางทับอ่านออกเสมอ ไม่ผูกกับ --primary ที่พลิกสีตามธีม */
+    --ink: oklch(0.245 0.12 283);              /* #191960 */
+    --ink-soft: oklch(0.32 0.14 281);          /* เข้มน้อยลง ไล่เฉดกลาง */
+    --accent-violet-deep: oklch(0.38 0.19 290); /* ม่วงเข้ม ปิดท้าย gradient */
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.dark {
+    /* ─── Dark theme — โทนน้ำเงิน-ม่วงเข้ม ─── */
+    --background: oklch(0.14 0.035 285);        /* #0c0c20 */
+    --foreground: oklch(0.965 0.008 285);       /* #f2f2fa */
+    --card: oklch(0.185 0.045 285);             /* #12122c */
+    --card-foreground: oklch(0.965 0.008 285);
+    --popover: oklch(0.185 0.045 285);
+    --popover-foreground: oklch(0.965 0.008 285);
+    --primary: oklch(0.66 0.15 285);            /* #8b8bf2 */
+    --primary-foreground: oklch(0.14 0.035 285);
+    --secondary: oklch(0.26 0.06 285);          /* #1e1e42 */
+    --secondary-foreground: oklch(0.965 0.008 285);
+    --muted: oklch(0.24 0.055 285);             /* #1a1a3a */
+    --muted-foreground: oklch(0.72 0.03 285);   /* #a8a8c8 */
+    --accent: oklch(0.29 0.065 285);            /* #24244e */
+    --accent-foreground: oklch(0.965 0.008 285);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(0.31 0.06 285);             /* #2a2a52 */
+    --input: oklch(0.31 0.06 285);
+    --ring: oklch(0.66 0.15 285);               /* #8b8bf2 */
+    --chart-1: oklch(0.65 0.18 285);
+    --chart-2: oklch(0.7 0.14 250);
+    --chart-3: oklch(0.55 0.12 270);
+    --chart-4: oklch(0.75 0.12 300);
+    --chart-5: oklch(0.62 0.16 265);
+    /* Sidebar (dark): ลดความสว่าง/chroma ให้เข้ากับ --background / --card
+       เหลือแค่เค้าโทน navy-violet ไว้เป็นเอกลักษณ์ ไม่ให้จัดจ้านแบบ light mode */
+    --sidebar: oklch(0.2 0.05 285);             /* #141432 */
+    --sidebar-bottom: oklch(0.3 0.08 280);      /* สว่างขึ้นเล็กน้อย */
+    --sidebar-foreground: oklch(0.97 0.01 285);
+    --sidebar-primary: oklch(0.7 0.15 285);     /* #9b9bf8 */
+    --sidebar-primary-foreground: oklch(0.14 0.035 285);
+    --sidebar-accent: oklch(1 0 0 / 10%);
+    --sidebar-accent-foreground: oklch(1 0 0);
+    --sidebar-border: oklch(0.31 0.06 285);
+    --sidebar-ring: oklch(0.66 0.15 285);
+
+    /* Nav panel: โทนน้ำเงิน-ม่วงสว่างเพื่อให้อ่านได้บนการ์ดสีเข้ม */
+    --nav-accent: oklch(0.66 0.15 285 / 20%);
+    --nav-accent-foreground: oklch(0.78 0.11 285);
+    --nav-indicator: oklch(0.66 0.15 285);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50 font-sans;
+    }
+    body {
+        @apply bg-background text-foreground font-sans;
+    }
+}
+
+::view-transition-old(root), ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
 }
