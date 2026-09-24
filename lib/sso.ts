@@ -4,6 +4,7 @@ import { createSsoAuthorizationRequest } from "@/services/apiSSOService"
 
 const AUTHORIZATION_STORAGE_KEY = "ssoAuthorization"
 const AUTHORIZATION_TTL_MS = 10 * 60 * 1000
+const SSO_APP_NAME = "template"
 
 export type SsoAuthorization = {
     state: string;
@@ -58,7 +59,10 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
     const codeVerifier = createRandomValue(64)
     const codeChallenge = await createCodeChallenge(codeVerifier)
     const redirectUri = getAbsoluteUrl(env.SSO_REDIRECT_URI, `${APP_BASE_PATH}/auth/callback`)
-    const ssoBaseUrl = getAbsoluteUrl(env.SSO_BASE_URL, "/jib-sso").replace(/\/$/, "")
+    const ssoBaseUrl = new URL(getAbsoluteUrl(env.SSO_BASE_URL, "/nexus-intralogin"))
+    ssoBaseUrl.pathname = ssoBaseUrl.pathname.replace(/\/$/, "").replace(/\/signin$/, "")
+    ssoBaseUrl.search = ""
+    ssoBaseUrl.hash = ""
     const authorization: SsoAuthorization = {
         state,
         nonce,
@@ -70,7 +74,8 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
     }
 
     if ( !env.SSO_API_BASE_URL ) {
-        const authorizeUrl = new URL(`${ssoBaseUrl}/authorize`)
+        const authorizeUrl = new URL(ssoBaseUrl)
+        authorizeUrl.pathname = `${ssoBaseUrl.pathname.replace(/\/$/, "")}/authorize`
         authorizeUrl.search = new URLSearchParams({
             client_id: env.SSO_CLIENT_ID,
             redirect_uri: redirectUri,
@@ -80,6 +85,7 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
             nonce,
             code_challenge: codeChallenge,
             code_challenge_method: "S256",
+            app_name: SSO_APP_NAME,
         }).toString()
 
         saveAuthorization(authorization)
@@ -110,9 +116,13 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
     }
 
     const signinUrl = new URL(ssoBaseUrl)
+    signinUrl.pathname = `${ssoBaseUrl.pathname.replace(/\/$/, "")}/signin`
     signinUrl.searchParams.set("authorizationRequestId", result.authorizationRequestId)
+    signinUrl.searchParams.set("app_name", SSO_APP_NAME)
     const expiresInSeconds = Math.max(1, Math.min(result.expiresIn ?? 300, 600))
     authorization.expiresAt = Date.now() + expiresInSeconds * 1_000
+    signinUrl.searchParams.set("expiresIn", String(expiresInSeconds))
+    signinUrl.searchParams.set("expiresAt", String(authorization.expiresAt))
 
     saveAuthorization(authorization)
     window.location.assign(signinUrl.toString())

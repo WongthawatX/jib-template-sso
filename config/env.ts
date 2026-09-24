@@ -1,10 +1,11 @@
 export const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/template"
+const API_BASE_URL = ( process.env.NEXT_PUBLIC_API_URL || "" ).replace(/\/$/, "")
 
 export const env = {
-    API_BASE_URL: process.env.NEXT_PUBLIC_API_URL || "",
-    SSO_BASE_URL: process.env.NEXT_PUBLIC_SSO_BASE_URL || "http://localhost:4001/jib-sso",
-    SSO_API_BASE_URL: process.env.NEXT_PUBLIC_SSO_API_BASE_URL || "",
-    SSO_CLIENT_ID: process.env.NEXT_PUBLIC_SSO_CLIENT_ID || "jib-template-sso",
+    API_BASE_URL,
+    SSO_BASE_URL: process.env.NEXT_PUBLIC_SSO_BASE_URL || "/nexus-intralogin/signin",
+    SSO_API_BASE_URL: process.env.NEXT_PUBLIC_SSO_API_BASE_URL || ( API_BASE_URL ? `${API_BASE_URL}/jib-sso/v1` : "" ),
+    SSO_CLIENT_ID: process.env.NEXT_PUBLIC_SSO_CLIENT_ID || "jib-template-app",
     SSO_REDIRECT_URI: process.env.NEXT_PUBLIC_SSO_REDIRECT_URI || `${APP_BASE_PATH}/auth/callback`,
     SSO_SCOPE: process.env.NEXT_PUBLIC_SSO_SCOPE || "openid profile",
 }

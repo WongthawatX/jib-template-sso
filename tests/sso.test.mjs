@@ -20,7 +20,7 @@ function memoryStorage() {
     }
 }
 
-function runtime({ api = "", fetcher = async () => { throw new Error("Unexpected API call") } } = {}) {
+function runtime({ api = "", environment = {}, fetcher = async () => { throw new Error("Unexpected API call") } } = {}) {
     const cache = new Map()
     const sessionStorage = memoryStorage()
     const localStorage = memoryStorage()
@@ -28,7 +28,12 @@ function runtime({ api = "", fetcher = async () => { throw new Error("Unexpected
     const globals = {
         URL, URLSearchParams, TextEncoder, AbortSignal, btoa,
         crypto: webcrypto,
-        process: { env: { NEXT_PUBLIC_SSO_API_BASE_URL: api, NEXT_PUBLIC_BASE_PATH: "/jib-sso" } },
+        process: { env: {
+            NEXT_PUBLIC_SSO_API_BASE_URL: api,
+            NEXT_PUBLIC_BASE_PATH: "/jib-sso",
+            NEXT_PUBLIC_SSO_BASE_URL: "http://localhost:4001/jib-sso",
+            ...environment,
+        } },
         sessionStorage, localStorage,
         fetch: fetcher,
         window: {
@@ -70,7 +75,8 @@ test("PKCE uses S256, unpredictable state and the basePath callback", async () =
     const destination = new URL(rt.redirects[0])
     const stored = JSON.parse(rt.sessionStorage.getItem("jib-sso:ssoAuthorization"))
     assert.equal(destination.pathname, "/jib-sso/authorize")
-    assert.equal(destination.searchParams.get("client_id"), "jib-template-sso")
+    assert.equal(destination.searchParams.get("client_id"), "jib-template-app")
+    assert.equal(destination.searchParams.get("app_name"), "template")
     assert.equal(destination.searchParams.get("redirect_uri"), "http://localhost:4000/jib-sso/auth/callback")
     assert.equal(destination.searchParams.get("code_challenge_method"), "S256")
     const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(stored.codeVerifier))
@@ -113,6 +119,10 @@ test("authorization API supports signin and rejects unexpected redirect origins"
     const rt = runtime({ api: "https://sso.test/v1", fetcher: async () => ({ ok: true, json: async () => ({ error: "login_required", authorizationRequestId: "request-123", expiresIn: 120 }) }) })
     await rt.load("lib/sso").beginSsoAuthorization("/dashboard")
     assert.equal(new URL(rt.redirects[0]).searchParams.get("authorizationRequestId"), "request-123")
+    const destination = new URL(rt.redirects[0])
+    assert.equal(destination.searchParams.get("app_name"), "template")
+    assert.equal(destination.searchParams.get("expiresIn"), "120")
+    assert.equal(Number(destination.searchParams.get("expiresAt")), rt.load("lib/sso").getSsoAuthorization().expiresAt)
     const invalid = runtime({ api: "https://sso.test/v1", fetcher: async () => ({ ok: true, json: async () => ({ redirectUrl: "https://evil.test/callback" }) }) })
     await assert.rejects(invalid.load("lib/sso").beginSsoAuthorization("/dashboard"))
     assert.equal(invalid.redirects.length, 0)
@@ -130,6 +140,73 @@ test("token exchange sends PKCE as form data and validates API responses", async
     assert.equal(request.options.method, "POST")
     const invalid = runtime({ fetcher: async () => ({ ok: true, json: async () => ({ access_token: "" }) }) })
     await assert.rejects(invalid.load("services/apiSSOService").exchangeSsoAuthorizationCode("c", "v", "u"))
+})
+
+test("UAT signin returns to the template callback and exchanges the original PKCE verifier", async () => {
+    const api = "https://api-uat-intranet.jibcomputer.group/jib-sso/v1"
+    const signin = "https://uat-intranet.jibcomputer.group/nexus-intralogin/signin"
+    for ( const frontend of [ signin, `${signin}/`, signin.replace(/\/signin$/, "") ] ) {
+        const requests = []
+        const rt = runtime({
+            environment: {
+                NEXT_PUBLIC_API_URL: "https://api-uat-intranet.jibcomputer.group/",
+                NEXT_PUBLIC_BASE_PATH: "/template",
+                NEXT_PUBLIC_SSO_BASE_URL: frontend,
+            },
+            fetcher: async ( url, options ) => {
+                requests.push({ url: new URL(url), options })
+                const data = url.startsWith(`${api}/authorize?`)
+                    ? { error: "login_required", authorizationRequestId: "new-uat-request", expiresIn: 300 }
+                    : url === `${api}/token`
+                        ? { access_token: "uat-token", token_type: "Bearer", expires_in: 3600 }
+                        : { sub: "employee-123", name: "SSO User", permissions: [] }
+                return { ok: true, json: async () => data }
+            },
+        })
+        const sso = rt.load("lib/sso")
+        await sso.beginSsoAuthorization("/profile")
+        const authorize = requests[0].url
+        const stored = sso.getSsoAuthorization()
+        const destination = new URL(rt.redirects[0])
+        assert.equal(`${destination.origin}${destination.pathname}`, signin)
+        assert.equal(destination.searchParams.get("authorizationRequestId"), "new-uat-request")
+        assert.equal(destination.searchParams.get("app_name"), "template")
+        assert.equal(destination.searchParams.get("expiresIn"), "300")
+        assert.equal(Number(destination.searchParams.get("expiresAt")), stored.expiresAt)
+        assert.equal(destination.searchParams.has("code_verifier"), false)
+        assert.equal(authorize.origin + authorize.pathname, `${api}/authorize`)
+        assert.equal(authorize.searchParams.get("client_id"), "jib-template-app")
+        assert.equal(authorize.searchParams.get("redirect_uri"), "http://localhost:4000/template/auth/callback")
+        const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(stored.codeVerifier))
+        assert.equal(authorize.searchParams.get("code_challenge"), Buffer.from(digest).toString("base64url"))
+        const { authorization, code } = sso.readSsoCallback(new URLSearchParams({ code: "uat-code", state: stored.state }))
+        const service = rt.load("services/apiSSOService")
+        const token = await service.exchangeSsoAuthorizationCode(code, authorization.codeVerifier, authorization.redirectUri)
+        const user = await service.getSsoUserInfo(token.access_token)
+        const store = rt.load("store/useAppStore").useAppStore
+        store.getState().setSsoSession(token.access_token, user, token.refresh_token, token.expires_in)
+        sso.clearSsoAuthorization()
+        assert.equal(requests[1].url.href, `${api}/token`)
+        assert.equal(requests[1].options.body.get("code_verifier"), stored.codeVerifier)
+        assert.equal(requests[1].options.body.get("redirect_uri"), stored.redirectUri)
+        assert.equal(requests[1].options.body.has("client_secret"), false)
+        assert.equal(requests[2].options.headers.Authorization, "Bearer uat-token")
+        assert.equal(store.getState().accessToken, "uat-token")
+        assert.equal(store.getState().userDetail.fullname, "SSO User")
+        assert.equal(sso.getSsoAuthorization(), null)
+        assert.equal(authorization.returnTo, "/profile")
+    }
+})
+
+test("authorize fallback uses the SSO root when configured with a signin URL", async () => {
+    const rt = runtime({ environment: {
+        NEXT_PUBLIC_SSO_BASE_URL: "https://sso.test/nexus-intralogin/signin?authorizationRequestId=old#fragment",
+    } })
+    await rt.load("lib/sso").beginSsoAuthorization("/dashboard")
+    const destination = new URL(rt.redirects[0])
+    assert.equal(destination.pathname, "/nexus-intralogin/authorize")
+    assert.equal(destination.searchParams.has("authorizationRequestId"), false)
+    assert.equal(destination.hash, "")
 })
 
 test("session initializes only after SSO verification and logout preserves sibling app storage", async () => {
