@@ -7,9 +7,7 @@ const request = async ( url: string, options?: RequestInit ): Promise<{ data: un
     const response = await fetch(url, { ...options, cache: "no-store", signal: AbortSignal.timeout(15000) })
     const data: unknown = await response.json().catch(() => null)
     if ( !response.ok ) {
-        const message = isRecord(data)
-            ? [ data.message, data.detail, data.error ].find(( value ): value is string => typeof value === "string")
-            : undefined
+        const message = isRecord(data) ? [ data.message, data.detail, data.error ].find(( value ): value is string => typeof value === "string") : undefined
         throw new Error(message ?? `SSO request failed (${response.status})`)
     }
     return { data }
@@ -140,10 +138,7 @@ export const refreshSsoToken = async ( refreshToken: string ): Promise<SsoTokenR
     return parseSsoTokenResponse(response.data, "Invalid SSO refresh response")
 }
 
-export const changeOwnSsoPassword = async (
-    accessToken: string,
-    input: ChangeOwnPasswordInput,
-): Promise<ChangeOwnPasswordResult> => {
+export const changeOwnSsoPassword = async ( accessToken: string, input: ChangeOwnPasswordInput ): Promise<ChangeOwnPasswordResult> => {
     const response = await request(path.SSO_CHANGE_PASSWORD, {
         method: "PATCH",
         headers: {
@@ -171,9 +166,7 @@ export const changeOwnSsoPassword = async (
 }
 
 ////////////////////////////// GET //////////////////////////////
-export const createSsoAuthorizationRequest = async (
-    input: SsoAuthorizationRequestInput,
-): Promise<SsoAuthorizationRequestResult> => {
+export const createSsoAuthorizationRequest = async ( input: SsoAuthorizationRequestInput ): Promise<SsoAuthorizationRequestResult> => {
     const query = new URLSearchParams({
         client_id: input.clientId,
         redirect_uri: input.redirectUri,
@@ -208,11 +201,9 @@ export const createSsoAuthorizationRequest = async (
 }
 
 export const getSsoUserInfo = async ( accessToken: string ): Promise<SsoUserInfo> => {
-    const response = await request(path.SSO_USERINFO, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const response = await request(path.SSO_USERINFO, { headers: { Authorization: `Bearer ${accessToken}` } })
 
-    if ( !isRecord(response.data) ) throw new Error("Invalid SSO userinfo response")
+    if ( !isRecord( response.data )) throw new Error("Invalid SSO userinfo response")
 
     const sub = readOptionalString(response.data, "sub") ?? readOptionalString(response.data, "user_id")
     if ( !sub ) throw new Error("Invalid SSO userinfo response")
@@ -228,11 +219,7 @@ export const getSsoUserInfo = async ( accessToken: string ): Promise<SsoUserInfo
         department: readOptionalString(response.data, "department"),
         branch: readOptionalString(response.data, "branch"),
         system_role: readOptionalString(response.data, "system_role"),
-        roles: Array.isArray(response.data.roles)
-            ? response.data.roles.filter(( role ): role is string => typeof role === "string")
-            : [],
-        permissions: Array.isArray(response.data.permissions)
-            ? response.data.permissions.filter(isPermission)
-            : [],
+        roles: Array.isArray(response.data.roles) ? response.data.roles.filter(( role ): role is string => typeof role === "string") : [],
+        permissions: Array.isArray(response.data.permissions) ? response.data.permissions.filter(isPermission) : [],
     }
 }
