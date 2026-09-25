@@ -4,7 +4,6 @@ import { createSsoAuthorizationRequest } from "@/services/apiSSOService"
 
 const AUTHORIZATION_STORAGE_KEY = "ssoAuthorization"
 const AUTHORIZATION_TTL_MS = 10 * 60 * 1000
-const SSO_APP_NAME = "template"
 
 export type SsoAuthorization = {
     state: string;
@@ -85,7 +84,7 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
             nonce,
             code_challenge: codeChallenge,
             code_challenge_method: "S256",
-            app_name: SSO_APP_NAME,
+            app_name: env.SSO_APP_NAME,
         }).toString()
 
         saveAuthorization(authorization)
@@ -118,7 +117,7 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
     const signinUrl = new URL(ssoBaseUrl)
     signinUrl.pathname = `${ssoBaseUrl.pathname.replace(/\/$/, "")}/signin`
     signinUrl.searchParams.set("authorizationRequestId", result.authorizationRequestId)
-    signinUrl.searchParams.set("app_name", SSO_APP_NAME)
+    signinUrl.searchParams.set("app_name", env.SSO_APP_NAME)
     const expiresInSeconds = Math.max(1, Math.min(result.expiresIn ?? 300, 600))
     authorization.expiresAt = Date.now() + expiresInSeconds * 1_000
     signinUrl.searchParams.set("expiresIn", String(expiresInSeconds))

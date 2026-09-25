@@ -32,6 +32,7 @@ function runtime({ api = "", environment = {}, fetcher = async () => { throw new
             NEXT_PUBLIC_SSO_API_BASE_URL: api,
             NEXT_PUBLIC_BASE_PATH: "/jib-sso",
             NEXT_PUBLIC_SSO_BASE_URL: "http://localhost:4001/jib-sso",
+            NEXT_PUBLIC_SSO_APP_NAME: "test-template",
             ...environment,
         } },
         sessionStorage, localStorage,
@@ -76,7 +77,7 @@ test("PKCE uses S256, unpredictable state and the basePath callback", async () =
     const stored = JSON.parse(rt.sessionStorage.getItem("jib-sso:ssoAuthorization"))
     assert.equal(destination.pathname, "/jib-sso/authorize")
     assert.equal(destination.searchParams.get("client_id"), "jib-template-app")
-    assert.equal(destination.searchParams.get("app_name"), "template")
+    assert.equal(destination.searchParams.get("app_name"), "test-template")
     assert.equal(destination.searchParams.get("redirect_uri"), "http://localhost:4000/jib-sso/auth/callback")
     assert.equal(destination.searchParams.get("code_challenge_method"), "S256")
     const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(stored.codeVerifier))
@@ -120,7 +121,7 @@ test("authorization API supports signin and rejects unexpected redirect origins"
     await rt.load("lib/sso").beginSsoAuthorization("/dashboard")
     assert.equal(new URL(rt.redirects[0]).searchParams.get("authorizationRequestId"), "request-123")
     const destination = new URL(rt.redirects[0])
-    assert.equal(destination.searchParams.get("app_name"), "template")
+    assert.equal(destination.searchParams.get("app_name"), "test-template")
     assert.equal(destination.searchParams.get("expiresIn"), "120")
     assert.equal(Number(destination.searchParams.get("expiresAt")), rt.load("lib/sso").getSsoAuthorization().expiresAt)
     const invalid = runtime({ api: "https://sso.test/v1", fetcher: async () => ({ ok: true, json: async () => ({ redirectUrl: "https://evil.test/callback" }) }) })
@@ -192,7 +193,7 @@ test("UAT signin returns to the template callback and exchanges the original PKC
         const destination = new URL(rt.redirects[0])
         assert.equal(`${destination.origin}${destination.pathname}`, signin)
         assert.equal(destination.searchParams.get("authorizationRequestId"), "new-uat-request")
-        assert.equal(destination.searchParams.get("app_name"), "template")
+        assert.equal(destination.searchParams.get("app_name"), "test-template")
         assert.equal(destination.searchParams.get("expiresIn"), "300")
         assert.equal(Number(destination.searchParams.get("expiresAt")), stored.expiresAt)
         assert.equal(destination.searchParams.has("code_verifier"), false)

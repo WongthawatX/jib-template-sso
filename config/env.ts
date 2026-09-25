@@ -6,6 +6,7 @@ export const env = {
     SSO_BASE_URL: process.env.NEXT_PUBLIC_SSO_BASE_URL || "/nexus-intralogin/signin",
     SSO_API_BASE_URL: process.env.NEXT_PUBLIC_SSO_API_BASE_URL || ( API_BASE_URL ? `${API_BASE_URL}/jib-sso/v1` : "" ),
     SSO_CLIENT_ID: process.env.NEXT_PUBLIC_SSO_CLIENT_ID || "jib-template-app",
+    SSO_APP_NAME: process.env.NEXT_PUBLIC_SSO_APP_NAME || "template",
     SSO_REDIRECT_URI: process.env.NEXT_PUBLIC_SSO_REDIRECT_URI || `${APP_BASE_PATH}/auth/callback`,
     SSO_SCOPE: process.env.NEXT_PUBLIC_SSO_SCOPE || "openid profile",
 }
