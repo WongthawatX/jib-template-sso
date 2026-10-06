@@ -1,9 +1,13 @@
 export const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/template"
 const API_BASE_URL = ( process.env.NEXT_PUBLIC_API_URL || "" ).replace(/\/$/, "")
 
+const SSO_BASE_URL = ( process.env.NEXT_PUBLIC_SSO_BASE_URL || "/nexus-intralogin" )
+    .split(/[?#]/)[0].replace(/\/$/, "").replace(/\/signin$/, "")
+
 export const env = {
     API_BASE_URL,
-    SSO_BASE_URL: process.env.NEXT_PUBLIC_SSO_BASE_URL || "/nexus-intralogin/signin",
+    SSO_BASE_URL,
+    SSO_LOGOUT_URL: process.env.NEXT_PUBLIC_SSO_LOGOUT_URL || `${SSO_BASE_URL}/api/auth/logout`,
     SSO_API_BASE_URL: process.env.NEXT_PUBLIC_SSO_API_BASE_URL || ( API_BASE_URL ? `${API_BASE_URL}/jib-sso/v1` : "" ),
     SSO_CLIENT_ID: process.env.NEXT_PUBLIC_SSO_CLIENT_ID || "jib-template-app",
     SSO_APP_NAME: process.env.NEXT_PUBLIC_SSO_APP_NAME || "template",

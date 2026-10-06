@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
-
 import { APP_BASE_PATH } from "@/config/env"
-
 import type { NextRequest } from "next/server"
 
 export function proxy(request: NextRequest) {

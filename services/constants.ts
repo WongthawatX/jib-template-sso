@@ -11,7 +11,7 @@ export const path = {
     SSO_REFRESH: `${SSO_API}/token/refresh`,
     SSO_USERINFO: `${SSO_API}/userinfo`,
     SSO_CHANGE_PASSWORD: `${SSO_API}/me/password`,
-    SSO_LOGOUT: `${SSO_API}/logout`,
+    SSO_LOGOUT: env.SSO_LOGOUT_URL,
 
     UPLOAD_MANY: `storage/upload-many`,
     ATTACH: `procon/attach`,

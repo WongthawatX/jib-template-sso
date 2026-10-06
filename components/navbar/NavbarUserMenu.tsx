@@ -6,6 +6,7 @@ import { KeyRoundIcon, LogOutIcon, User, UserIcon } from "lucide-react"
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu"
+import { logoutSso } from "@/services/apiSSOService"
 import { useAppStore } from "@/store/useAppStore"
 import { ChangePasswordDialog } from "../dialog"
 
@@ -13,6 +14,7 @@ export default function NavbarUserMenu() {
     const router = useRouter()
     const userDetail = useAppStore(( state ) => state.userDetail)
     const logout = useAppStore(( state ) => state.logout)
+    const [ isLoggingOut, setIsLoggingOut ] = useState<boolean>(false)
     const [ isChangePasswordOpen, setIsChangePasswordOpen ] = useState<boolean>(false)
 
     const displayName = userDetail?.name || "ผู้ใช้งาน"
@@ -22,9 +24,18 @@ export default function NavbarUserMenu() {
         ? `${process.env.NEXT_PUBLIC_API_URL}/intranet-api/storage/view?bucket=images&object=${encodeURIComponent(`JIBHR/img_hr/${username}.jpg`)}`
         : undefined
 
-    const handleLogout = () => {
-        logout()
-        router.replace("/login?loggedOut=1")
+    const handleLogout = async () => {
+        if ( isLoggingOut ) return
+        setIsLoggingOut(true)
+        let hasLogoutError = false
+        try {
+            await logoutSso(useAppStore.getState().accessToken)
+        } catch {
+            hasLogoutError = true
+        } finally {
+            logout()
+            router.replace(`/login?loggedOut=1${hasLogoutError ? "&logoutError=1" : ""}`)
+        }
     }
 
     return (
@@ -70,7 +81,7 @@ export default function NavbarUserMenu() {
                         <KeyRoundIcon /> เปลี่ยนรหัสผ่าน
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                    <DropdownMenuItem variant="destructive" disabled={isLoggingOut} onClick={handleLogout}>
                         <LogOutIcon /> ออกจากระบบ
                     </DropdownMenuItem>
                     </DropdownMenuGroup>

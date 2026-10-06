@@ -116,17 +116,11 @@ test("disabled storage prevents leaving the app with an unusable authorization",
     assert.equal(rt.redirects.length, 0)
 })
 
-test("authorization API supports signin and rejects unexpected redirect origins", async () => {
-    const rt = runtime({ api: "https://sso.test/v1", fetcher: async () => ({ ok: true, json: async () => ({ error: "login_required", authorizationRequestId: "request-123", expiresIn: 120 }) }) })
+test("configured API still authorizes through the central browser session", async () => {
+    const rt = runtime({ api: "https://sso.test/v1" })
     await rt.load("lib/sso").beginSsoAuthorization("/dashboard")
-    assert.equal(new URL(rt.redirects[0]).searchParams.get("authorizationRequestId"), "request-123")
-    const destination = new URL(rt.redirects[0])
-    assert.equal(destination.searchParams.get("app_name"), "test-template")
-    assert.equal(destination.searchParams.get("expiresIn"), "120")
-    assert.equal(Number(destination.searchParams.get("expiresAt")), rt.load("lib/sso").getSsoAuthorization().expiresAt)
-    const invalid = runtime({ api: "https://sso.test/v1", fetcher: async () => ({ ok: true, json: async () => ({ redirectUrl: "https://evil.test/callback" }) }) })
-    await assert.rejects(invalid.load("lib/sso").beginSsoAuthorization("/dashboard"))
-    assert.equal(invalid.redirects.length, 0)
+    assert.equal(new URL(rt.redirects[0]).pathname, "/jib-sso/authorize")
+    assert.equal(new URL(rt.redirects[0]).searchParams.has("authorizationRequestId"), false)
 })
 
 test("token exchange sends PKCE as form data and validates API responses", async () => {
@@ -165,7 +159,7 @@ test("change password sends an authenticated PATCH request", async () => {
     assert.equal(result.reauthenticationRequired, true)
 })
 
-test("UAT signin returns to the template callback and exchanges the original PKCE verifier", async () => {
+test("UAT central authorization returns to the template callback and exchanges the original PKCE verifier", async () => {
     const api = "https://api-uat-intranet.jibcomputer.group/jib-sso/v1"
     const signin = "https://uat-intranet.jibcomputer.group/nexus-intralogin/signin"
     for ( const frontend of [ signin, `${signin}/`, signin.replace(/\/signin$/, "") ] ) {
@@ -188,16 +182,12 @@ test("UAT signin returns to the template callback and exchanges the original PKC
         })
         const sso = rt.load("lib/sso")
         await sso.beginSsoAuthorization("/profile")
-        const authorize = requests[0].url
+        const authorize = new URL(rt.redirects[0])
         const stored = sso.getSsoAuthorization()
-        const destination = new URL(rt.redirects[0])
-        assert.equal(`${destination.origin}${destination.pathname}`, signin)
-        assert.equal(destination.searchParams.get("authorizationRequestId"), "new-uat-request")
-        assert.equal(destination.searchParams.get("app_name"), "test-template")
-        assert.equal(destination.searchParams.get("expiresIn"), "300")
-        assert.equal(Number(destination.searchParams.get("expiresAt")), stored.expiresAt)
-        assert.equal(destination.searchParams.has("code_verifier"), false)
-        assert.equal(authorize.origin + authorize.pathname, `${api}/authorize`)
+        assert.equal(authorize.origin + authorize.pathname, signin.replace(/\/signin$/, "/authorize"))
+        assert.equal(authorize.searchParams.get("app_name"), "test-template")
+        assert.equal(authorize.searchParams.has("code_verifier"), false)
+        assert.equal(requests.length, 0)
         assert.equal(authorize.searchParams.get("client_id"), "jib-template-app")
         assert.equal(authorize.searchParams.get("redirect_uri"), "http://localhost:4000/template/auth/callback")
         const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(stored.codeVerifier))
@@ -209,11 +199,11 @@ test("UAT signin returns to the template callback and exchanges the original PKC
         const store = rt.load("store/useAppStore").useAppStore
         store.getState().setSsoSession(token.access_token, user, token.refresh_token, token.expires_in)
         sso.clearSsoAuthorization()
-        assert.equal(requests[1].url.href, `${api}/token`)
-        assert.equal(requests[1].options.body.get("code_verifier"), stored.codeVerifier)
-        assert.equal(requests[1].options.body.get("redirect_uri"), stored.redirectUri)
-        assert.equal(requests[1].options.body.has("client_secret"), false)
-        assert.equal(requests[2].options.headers.Authorization, "Bearer uat-token")
+        assert.equal(requests[0].url.href, `${api}/token`)
+        assert.equal(requests[0].options.body.get("code_verifier"), stored.codeVerifier)
+        assert.equal(requests[0].options.body.get("redirect_uri"), stored.redirectUri)
+        assert.equal(requests[0].options.body.has("client_secret"), false)
+        assert.equal(requests[1].options.headers.Authorization, "Bearer uat-token")
         assert.equal(store.getState().accessToken, "uat-token")
         assert.equal(store.getState().userDetail.name, "SSO User")
         assert.deepEqual(store.getState().permissions, [ "*", "DASHBOARD.view" ])
@@ -271,4 +261,32 @@ test("expired or rejected tokens clear the session", async () => {
         assert.equal(store.getState().isInitialized, true)
         assert.equal(rt.sessionStorage.getItem("jib-sso:accessToken"), null)
     }
+})
+
+
+test("central logout sends cookies without requiring a refresh token and omits expired JWTs", async () => {
+    const jwt = exp => `eyJhbGciOiJub25lIn0.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.signature`
+    for ( const token of [ "", "invalid", jwt(1), jwt(Math.floor(Date.now() / 1000) + 3600) ] ) {
+        let sent
+        const rt = runtime({ fetcher: async (url, options) => {
+            sent = { url, options }
+            return { ok: true, json: async () => null }
+        } })
+        await rt.load("services/apiSSOService").logoutSso(token)
+        assert.equal(sent.url, "http://localhost:4001/jib-sso/api/auth/logout")
+        assert.equal(sent.options.credentials, "include")
+        assert.equal(sent.options.method, "POST")
+        assert.equal(sent.options.body, "{}")
+        assert.equal(sent.options.headers.Authorization, token === "" || token === "invalid" || token === jwt(1) ? undefined : `Bearer ${token}`)
+    }
+})
+
+test("logout honors an explicit endpoint and surfaces network errors", async () => {
+    let destination
+    const rt = runtime({ environment: { NEXT_PUBLIC_SSO_LOGOUT_URL: "https://sso.test/custom/logout" }, fetcher: async url => {
+        destination = url
+        return { ok: false, status: 503, json: async () => null }
+    } })
+    await assert.rejects(rt.load("services/apiSSOService").logoutSso())
+    assert.equal(destination, "https://sso.test/custom/logout")
 })

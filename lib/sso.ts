@@ -1,6 +1,5 @@
 import { APP_BASE_PATH, env } from "@/config/env"
 import { sessionStorageStore } from "@/lib/storage"
-import { createSsoAuthorizationRequest } from "@/services/apiSSOService"
 
 const AUTHORIZATION_STORAGE_KEY = "ssoAuthorization"
 const AUTHORIZATION_TTL_MS = 10 * 60 * 1000
@@ -72,59 +71,22 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
         expiresAt: Date.now() + AUTHORIZATION_TTL_MS,
     }
 
-    if ( !env.SSO_API_BASE_URL ) {
-        const authorizeUrl = new URL(ssoBaseUrl)
-        authorizeUrl.pathname = `${ssoBaseUrl.pathname.replace(/\/$/, "")}/authorize`
-        authorizeUrl.search = new URLSearchParams({
-            client_id: env.SSO_CLIENT_ID,
-            redirect_uri: redirectUri,
-            response_type: "code",
-            scope: env.SSO_SCOPE,
-            state,
-            nonce,
-            code_challenge: codeChallenge,
-            code_challenge_method: "S256",
-            app_name: env.SSO_APP_NAME,
-        }).toString()
-
-        saveAuthorization(authorization)
-        window.location.assign(authorizeUrl.toString())
-        return
-    }
-
-    const result = await createSsoAuthorizationRequest({
-        clientId: env.SSO_CLIENT_ID,
-        redirectUri,
+    const authorizeUrl = new URL(ssoBaseUrl)
+    authorizeUrl.pathname = `${ssoBaseUrl.pathname.replace(/\/$/, "")}/authorize`
+    authorizeUrl.search = new URLSearchParams({
+        client_id: env.SSO_CLIENT_ID,
+        redirect_uri: redirectUri,
+        response_type: "code",
         scope: env.SSO_SCOPE,
         state,
         nonce,
-        codeChallenge,
-    })
+        code_challenge: codeChallenge,
+        code_challenge_method: "S256",
+        app_name: env.SSO_APP_NAME,
+    }).toString()
 
     saveAuthorization(authorization)
-
-    if ( result.action === "redirect" ) {
-        const target = new URL(result.redirectUrl, window.location.origin)
-        const callback = new URL(redirectUri)
-        if ( target.origin !== callback.origin || target.pathname !== callback.pathname ) {
-            clearSsoAuthorization()
-            throw new Error("SSO ส่ง callback URL ไม่ตรงกับที่ตั้งค่าไว้")
-        }
-        window.location.assign(target.toString())
-        return
-    }
-
-    const signinUrl = new URL(ssoBaseUrl)
-    signinUrl.pathname = `${ssoBaseUrl.pathname.replace(/\/$/, "")}/signin`
-    signinUrl.searchParams.set("authorizationRequestId", result.authorizationRequestId)
-    signinUrl.searchParams.set("app_name", env.SSO_APP_NAME)
-    const expiresInSeconds = Math.max(1, Math.min(result.expiresIn ?? 300, 600))
-    authorization.expiresAt = Date.now() + expiresInSeconds * 1_000
-    signinUrl.searchParams.set("expiresIn", String(expiresInSeconds))
-    signinUrl.searchParams.set("expiresAt", String(authorization.expiresAt))
-
-    saveAuthorization(authorization)
-    window.location.assign(signinUrl.toString())
+    window.location.assign(authorizeUrl.toString())
 }
 
 function saveAuthorization(authorization: SsoAuthorization): void {

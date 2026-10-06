@@ -1,4 +1,6 @@
-import { env } from "@/config/env"
+import { jwtDecode } from "jwt-decode"
+
+import { DEV_AUTH_BYPASS, env } from "@/config/env"
 import { path } from "@/services/constants"
 
 import type { Permission } from "@/utils/permissions"
@@ -222,4 +224,24 @@ export const getSsoUserInfo = async ( accessToken: string ): Promise<SsoUserInfo
         roles: Array.isArray(response.data.roles) ? response.data.roles.filter(( role ): role is string => typeof role === "string") : [],
         permissions: Array.isArray(response.data.permissions) ? response.data.permissions.filter(isPermission) : [],
     }
+}
+
+export const logoutSso = async ( accessToken = "" ): Promise<void> => {
+    if ( DEV_AUTH_BYPASS ) return
+    let canSendToken = false
+    try {
+        const { exp } = jwtDecode<{ exp?: number }>(accessToken)
+        canSendToken = typeof exp === "number" && Number.isFinite(exp) && exp > Date.now() / 1000
+    } catch {
+        // The central session cookie can log out even without a valid JWT.
+    }
+    await request(env.SSO_LOGOUT_URL, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+            ...(canSendToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({}),
+    })
 }

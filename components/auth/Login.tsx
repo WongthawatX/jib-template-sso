@@ -17,6 +17,7 @@ export default function Login() {
     const hasStarted = useRef<boolean>(false)
     const [ errorMessage, setErrorMessage ] = useState<string>("")
     const [ isLoading, setIsLoading ] = useState<boolean>(false)
+    const hasLogoutError = searchParams.get("logoutError") === "1"
     const isLoggedOut = searchParams.get("loggedOut") === "1"
     const isPasswordChanged = searchParams.get("passwordChanged") === "1"
     const returnTo = getSafeReturnTo(searchParams.get("returnTo") ?? "/dashboard")
@@ -60,7 +61,9 @@ export default function Login() {
                                     : "กำลังไปยัง JIB SSO" }
                     </CardTitle>
                     <CardDescription aria-live="polite">
-                        { errorMessage || ( isPasswordChanged
+                        { errorMessage || ( hasLogoutError
+                            ? "ล้างเซสชันในแอปแล้ว แต่ไม่สามารถออกจากระบบ SSO กลางได้ กรุณาลองอีกครั้งภายหลัง"
+                            : isPasswordChanged
                             ? "กรุณาเข้าสู่ระบบอีกครั้งด้วยรหัสผ่านใหม่"
                             : "เข้าสู่ระบบด้วยบัญชีพนักงานผ่าน JIB SSO" ) }
                     </CardDescription>

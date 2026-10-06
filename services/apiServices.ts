@@ -1,20 +1,20 @@
 import axios from "axios"
 
+import { APP_BASE_PATH } from "@/config/env"
+import { useAppStore } from "@/store/useAppStore"
 import { jwtDecode } from "jwt-decode"
 import { BASE_API_URL, BASE_API_URL_UPLOAD, path } from "./constants";
 import { getStoredAccessToken, sessionStorageStore, storage } from "@/lib/storage"
 // import { cleanParams } from "@/functions/functions"
-import { refreshSsoToken } from "./apiSSOService"
-
-import type { AxiosResponse } from "axios"
+import { logoutSso, refreshSsoToken } from "./apiSSOService"
 
 export const isTokenExpired = ( token: string ): boolean => {
     if ( !token ) return true;
 
     try {
-        const decoded: any = jwtDecode( token );
+        const decoded = jwtDecode<{ exp?: number }>(token)
 
-        return decoded.exp < Date.now() / 1000;
+        return typeof decoded.exp !== "number" || decoded.exp <= Date.now() / 1000
     } catch {
         return true;
     }
@@ -26,22 +26,10 @@ const uploadAPI = axios.create({ baseURL: BASE_API_URL_UPLOAD })
 const redirectToLogin = () => {
     storage.clear()
     sessionStorageStore.clear()
-    location.href = `${import.meta.env.BASE_URL}login`
+    window.location.replace(new URL(`${APP_BASE_PATH}/login?loggedOut=1`, window.location.origin).toString())
 }
 
-const requestSsoLogout = async (): Promise<AxiosResponse<unknown> | null> => {
-    const refreshToken = sessionStorageStore.getItem("refreshToken") ?? storage.getItem("refreshToken")
-    if ( !refreshToken ) return null
-
-    const accessToken = getStoredAccessToken()
-    const response = await axios.post(
-        path.SSO_LOGOUT,
-        { refresh_token: refreshToken },
-        accessToken ? { headers: { Authorization: `Bearer ${accessToken}` }} : undefined,
-    )
-
-    return response
-}
+const requestSsoLogout = (): Promise<void> => logoutSso(getStoredAccessToken() ?? "")
 
 // single-flight: หลายรีเควสต์ที่เจอ token หมดอายุพร้อมกันจะรอ refresh ครั้งเดียว
 let ssoRefreshPromise: Promise<string | null> | null = null
@@ -53,6 +41,8 @@ const runSsoRefresh = async (): Promise<string | null> => {
     try {
         const result = await refreshSsoToken( refreshToken )
 
+        const user = useAppStore.getState().userDetail
+        if ( user ) useAppStore.getState().setSsoSession(result.access_token, user, result.refresh_token ?? refreshToken, result.expires_in)
         sessionStorageStore.setItem("accessToken", result.access_token)
         if ( result.refresh_token ) sessionStorageStore.setItem("refreshToken", result.refresh_token)
 
@@ -81,7 +71,7 @@ authAPI.interceptors.request.use(async (config) => {
             token = refreshed
         } else {
             // ไม่มี refresh token หรือ refresh ไม่สำเร็จ → logout
-            void requestSsoLogout().finally(redirectToLogin)
+            void requestSsoLogout().catch(() => undefined).finally(redirectToLogin)
 
             return Promise.reject(new Error("Token expired"))
         }
@@ -93,11 +83,12 @@ authAPI.interceptors.request.use(async (config) => {
 })
 
 authAPI.interceptors.response.use(
-    ( response: any ) => response,
-    async ( error: any ) => {
-        const originalRequest = error.config
+    ( response ) => response,
+    async ( error: unknown ) => {
+        if ( !axios.isAxiosError(error) ) return Promise.reject(error)
+        const originalRequest = error.config as (typeof error.config & { _retry?: boolean })
 
-        if ( error.response?.status === 401 && !originalRequest._retry ) {
+        if ( error.response?.status === 401 && originalRequest && !originalRequest._retry ) {
             originalRequest._retry = true
 
             // ลอง refresh แล้วยิงซ้ำหนึ่งครั้ง
@@ -117,7 +108,7 @@ authAPI.interceptors.response.use(
     }
 )
 
-export const logout = async (): Promise<AxiosResponse<unknown> | null> => {
+export const logout = async (): Promise<void> => {
     try {
         const accessToken = getStoredAccessToken()
         if ( accessToken && isTokenExpired( accessToken ) ) await ensureFreshSsoToken()

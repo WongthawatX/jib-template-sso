@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 
 import { ShieldCheck } from "lucide-react"
 
+import { logoutSso } from "@/services/apiSSOService"
 import { useAppStore } from "@/store/useAppStore"
 
 import type { ReactNode } from "react"
@@ -30,7 +31,15 @@ export default function SessionGuard({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if ( !accessToken || expiresAt === null ) return
-        const checkExpiration = () => { if ( Date.now() >= expiresAt ) logout() }
+        let hasStartedLogout = false
+        const checkExpiration = () => {
+            if ( Date.now() < expiresAt || hasStartedLogout ) return
+            hasStartedLogout = true
+            void logoutSso(accessToken).catch(() => undefined).finally(() => {
+                logout()
+                router.replace("/login?loggedOut=1")
+            })
+        }
         checkExpiration()
         const timer = window.setInterval(checkExpiration, 1000)
         window.addEventListener("focus", checkExpiration)
@@ -38,7 +47,7 @@ export default function SessionGuard({ children }: { children: ReactNode }) {
             window.clearInterval(timer)
             window.removeEventListener("focus", checkExpiration)
         }
-    }, [ accessToken, expiresAt, logout ])
+    }, [ accessToken, expiresAt, logout, router ])
 
     if ( !isInitialized || !accessToken ) {
         return (

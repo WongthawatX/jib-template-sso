@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldError, FieldGroup, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 
-import { changeOwnSsoPassword } from "@/services/apiSSOService"
+import { changeOwnSsoPassword, logoutSso } from "@/services/apiSSOService"
 import { useAppStore } from "@/store/useAppStore"
 
 import type { FormEvent } from "react"
@@ -66,9 +66,15 @@ export default function ChangePasswordDialog({ open, onOpenChange }: Props) {
         try {
             setIsLoading(true)
             await changeOwnSsoPassword(accessToken, { currentPassword, newPassword })
+            let hasLogoutError = false
+            try {
+                await logoutSso(accessToken)
+            } catch {
+                hasLogoutError = true
+            }
             handleOpenChange(false)
             logout()
-            router.replace("/login?passwordChanged=1")
+            router.replace(`/login?passwordChanged=1${hasLogoutError ? "&logoutError=1" : ""}`)
         } catch ( error ) {
             setErrorMessage(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาลองอีกครั้ง")
         } finally {
