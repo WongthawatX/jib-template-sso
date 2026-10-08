@@ -1,8 +1,7 @@
 export const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/template"
 const API_BASE_URL = ( process.env.NEXT_PUBLIC_API_URL || "" ).replace(/\/$/, "")
 
-const SSO_BASE_URL = ( process.env.NEXT_PUBLIC_SSO_BASE_URL || "/nexus-intralogin" )
-    .split(/[?#]/)[0].replace(/\/$/, "").replace(/\/signin$/, "")
+const SSO_BASE_URL = ( process.env.NEXT_PUBLIC_SSO_BASE_URL || "/nexus-intralogin" ).split(/[?#]/)[0].replace(/\/$/, "").replace(/\/signin$/, "")
 
 export const env = {
     API_BASE_URL,
