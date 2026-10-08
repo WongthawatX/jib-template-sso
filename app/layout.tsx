@@ -23,7 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     return (
         <html lang="th" suppressHydrationWarning className={cn(kanit.variable, "h-full antialiased")}>
             <body className="flex min-h-full flex-col">
-                <Providers> { children } </Providers>
+                <Providers>{ children }</Providers>
             </body>
         </html>
     )
