@@ -17,7 +17,7 @@ const kanit = Kanit({
 })
 
 export const metadata: Metadata = {
-    title: "JIB Intranet",
+    title: "JIB Intranet Template",
     description: "JIB Intranet · Single Sign-On",
     referrer: "no-referrer",
 }
