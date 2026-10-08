@@ -1,5 +1,4 @@
 import { Kanit } from "next/font/google"
-
 import { Providers } from "@/components/layout"
 import { cn } from "@/lib/utils"
 
@@ -15,8 +14,8 @@ const kanit = Kanit({
 })
 
 export const metadata: Metadata = {
-    title: "JIB Intranet",
-    description: "JIB Intranet · Single Sign-On",
+    title: "JIB ONSITE SERVICE",
+    description: "JIB Onsite Service · ระบบงาน Onsite Service",
     referrer: "no-referrer",
 }
 

@@ -61,52 +61,62 @@ const ensureFreshSsoToken = (): Promise<string | null> => {
     return ssoRefreshPromise
 }
 
-authAPI.interceptors.request.use(async (config) => {
-    let token = getStoredAccessToken()
+export const createSsoApiClient = ( baseURL: string ) => {
+    const client = axios.create({ baseURL, timeout: 15000 })
+    attachSsoInterceptors(client)
+    return client
+}
 
-    if ( token && isTokenExpired( token ) ) {
-        const refreshed = await ensureFreshSsoToken()
+const attachSsoInterceptors = ( client: ReturnType<typeof axios.create> ): void => {
+    client.interceptors.request.use(async (config) => {
+        let token = getStoredAccessToken()
 
-        if ( refreshed ) {
-            token = refreshed
-        } else {
-            // ไม่มี refresh token หรือ refresh ไม่สำเร็จ → logout
-            void requestSsoLogout().catch(() => undefined).finally(redirectToLogin)
-
-            return Promise.reject(new Error("Token expired"))
-        }
-    }
-
-    if ( token ) config.headers['Authorization'] = `Bearer ${token}`
-
-    return config
-})
-
-authAPI.interceptors.response.use(
-    ( response ) => response,
-    async ( error: unknown ) => {
-        if ( !axios.isAxiosError(error) ) return Promise.reject(error)
-        const originalRequest = error.config as (typeof error.config & { _retry?: boolean })
-
-        if ( error.response?.status === 401 && originalRequest && !originalRequest._retry ) {
-            originalRequest._retry = true
-
-            // ลอง refresh แล้วยิงซ้ำหนึ่งครั้ง
+        if ( token && isTokenExpired( token ) ) {
             const refreshed = await ensureFreshSsoToken()
 
             if ( refreshed ) {
-                originalRequest.headers['Authorization'] = `Bearer ${refreshed}`
+                token = refreshed
+            } else {
+                // ไม่มี refresh token หรือ refresh ไม่สำเร็จ → logout
+                void requestSsoLogout().catch(() => undefined).finally(redirectToLogin)
 
-                return authAPI( originalRequest )
+                return Promise.reject(new Error("Token expired"))
             }
-
-            storage.removeItem("accessToken")
-            redirectToLogin()
         }
 
-        return Promise.reject(error)
-    }
-)
+        if ( token ) config.headers['Authorization'] = `Bearer ${token}`
+
+        return config
+    })
+
+    client.interceptors.response.use(
+        ( response ) => response,
+        async ( error: unknown ) => {
+            if ( !axios.isAxiosError(error) ) return Promise.reject(error)
+            const originalRequest = error.config as (typeof error.config & { _retry?: boolean })
+
+            if ( error.response?.status === 401 && originalRequest && !originalRequest._retry ) {
+                originalRequest._retry = true
+
+                // ลอง refresh แล้วยิงซ้ำหนึ่งครั้ง
+                const refreshed = await ensureFreshSsoToken()
+
+                if ( refreshed ) {
+                    originalRequest.headers['Authorization'] = `Bearer ${refreshed}`
+
+                    return client( originalRequest )
+                }
+
+                storage.removeItem("accessToken")
+                redirectToLogin()
+            }
+
+            return Promise.reject(error)
+        }
+    )
+}
+
+attachSsoInterceptors(authAPI)
 
 export const logout = async (): Promise<void> => {
     try {

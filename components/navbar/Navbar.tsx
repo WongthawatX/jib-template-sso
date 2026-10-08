@@ -15,7 +15,7 @@ export default function Navbar() {
                     <SidebarTrigger className="-ml-1 flex size-7 md:hidden" />
 
                     <Image
-                        src={`${APP_BASE_PATH}/jib_logo_blue.png`}
+                        src={`${APP_BASE_PATH}/JIB_LOGO_BLUE.jpg`}
                         alt="JIB"
                         width={28}
                         height={28}
