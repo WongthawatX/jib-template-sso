@@ -1,3 +1,5 @@
+import { AntdRegistry } from "@ant-design/nextjs-registry"
+
 import { Kanit } from "next/font/google"
 
 import { Providers } from "@/components/layout"
@@ -24,7 +26,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     return (
         <html lang="th" suppressHydrationWarning className={cn(kanit.variable, "h-full antialiased")}>
             <body className="flex min-h-full flex-col">
-                <Providers> { children } </Providers>
+                <Providers>
+                    <AntdRegistry> { children } </AntdRegistry>
+                </Providers>
             </body>
         </html>
     )

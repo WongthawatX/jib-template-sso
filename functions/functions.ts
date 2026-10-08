@@ -8,6 +8,28 @@ const pad = ( value: number ): string => String(value).padStart(2, "0")
 export const formatDate = ( date: Date = new Date() ): string =>
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 
+/** คืนค่า dd/MM/yyyy (ค.ศ.) สำหรับแสดงผล */
+export const formatDateDMY = ( date: Date = new Date() ): string =>
+    `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`
+
+/**
+ * แปลงค่าวันที่จาก prop เป็น Date — รับได้ทั้ง Date, "YYYY-MM-DD" และ "dd/MM/yyyy"
+ * คืน undefined ถ้าแปลงไม่ได้ (อย่าคืน Invalid Date ออกไป เพราะจะไปพังที่ปลายทาง)
+ */
+export const parseDateValue = ( value?: Date | string | null ): Date | undefined => {
+    if ( !value ) return undefined
+    if ( value instanceof Date ) return Number.isNaN(value.getTime()) ? undefined : value
+
+    const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+    if ( iso ) return new Date( Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]) )
+
+    const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value)
+    if ( dmy ) return new Date( Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]) )
+
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed
+}
+
 /** คืนค่า HH:mm ตามเวลาเครื่อง */
 export const formatTime = ( date: Date = new Date() ): string =>
     `${pad(date.getHours())}:${pad(date.getMinutes())}`

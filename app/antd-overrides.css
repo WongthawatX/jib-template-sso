@@ -1,0 +1,423 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Ant Design — Theme Overrides
+   antd v6 ฉีด style ของตัวเองเข้ามาตอน runtime (ผ่าน AntdRegistry) ไฟล์นี้จึงเป็น
+   plain CSS ที่ specificity สูงกว่า ไว้ดึงหน้าตา antd ให้เข้ากับธีม indigo/violet
+   ของโปรเจกต์ ทั้ง light / dark
+
+   - ถูก import จาก app/globals.css (อย่า import ตรงใน component)
+   - ใช้ค่า hex ตรงๆ ไม่ผูก var() เพราะ antd คำนวณสีเองอยู่แล้ว การผสม var ทำให้ไล่สียาก
+   - dark mode scope ด้วย `.dark`, light mode scope ด้วย `:root:not(.dark)`
+     เพื่อไม่ให้กฎ light ไปทับกฎ dark ด้านบน
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ─── Shared (ทั้งสองธีม) ─── */
+.ant-table-body,
+.ant-table-content {
+    scrollbar-width: thin;
+}
+
+/* ตารางทรงกะทัดรัด — DraggableColumnsTable ใส่คลาสนี้ให้ทุกตารางอยู่แล้ว
+   ค่า --table-* มาจาก inline style ของ wrapper ซึ่งผูกกับแผงปรับแต่งคอลัมน์ของผู้ใช้
+   fallback ไว้ด้วยเผื่อมีใครใช้คลาสนี้โดยไม่ผ่าน DraggableColumnsTable */
+.table-antd-overrides .ant-table-thead>tr>th {
+    padding: var(--table-cell-padding-y, 2px) 8px !important;
+    font-size: var(--table-header-font-size, 11px) !important;
+}
+
+.table-antd-overrides .ant-table-tbody>tr>td {
+    padding: var(--table-cell-padding-y, 2px) 8px !important;
+    font-size: var(--table-body-font-size, 11px) !important;
+}
+
+.table-antd-overrides .ant-table-tbody>tr.ant-table-measure-row {
+    visibility: collapse !important;
+    height: 0 !important;
+}
+
+/* ─── เส้นตาราง / แถบสลับสี — คุมจากแผงปรับแต่งของผู้ใช้ ───
+   --table-border-color / --table-border-width มาจาก inline style ของ wrapper
+   ต้องมี !important เพราะทับกฎ border-color ของธีมด้านล่างที่ใส่ !important ไว้ */
+.table-antd-overrides .ant-table-thead>tr>th,
+.table-antd-overrides .ant-table-tbody>tr>td {
+    border-color: var(--table-border-color, var(--border)) !important;
+    border-width: 0 var(--table-border-width, 1px) var(--table-border-width, 1px) 0 !important;
+    border-style: solid !important;
+}
+
+/* ไม่เอาเส้นคั่นคอลัมน์ — เหลือแต่เส้นแบ่งแถว */
+[data-table-divider="false"] .table-antd-overrides .ant-table-thead>tr>th,
+[data-table-divider="false"] .table-antd-overrides .ant-table-tbody>tr>td {
+    border-inline-end-color: transparent !important;
+}
+
+/* แถบสลับสีแถวคู่ — specificity ต้องสูงกว่ากฎ background ของธีมด้านล่าง
+   เลี่ยงแถวที่ hover/selected อยู่ ไม่ให้ทับไฮไลต์ */
+[data-table-striped="true"] .table-antd-overrides .ant-table-tbody>tr.ant-table-row:nth-child(even):not(:hover):not(.ant-table-row-selected)>td {
+    background-color: color-mix(in oklch, var(--muted) 60%, transparent) !important;
+}
+
+.table-antd-overrides .ant-table-placeholder .ant-empty {
+    margin: 8px 0 !important;
+}
+
+.table-antd-overrides .ant-table-summary>tr>td {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    font-weight: 600;
+}
+
+.table-antd-overrides .ant-pagination {
+    margin: 8px 0 !important;
+    font-size: 12px !important;
+}
+
+/* ช่อง input/InputNumber ในตาราง ให้เตี้ยพอดีแถว ไม่ดันความสูง row (ยกเว้น checkbox/radio ของ rowSelection) */
+.table-antd-overrides .ant-table-tbody input:not([type="checkbox"]):not([type="radio"]) {
+    height: 1.75rem !important;
+    min-height: 1.75rem !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    font-size: 12px !important;
+}
+
+/* ─── Ant Design Pagination — Dark Mode Override ─── */
+.dark .ant-pagination .ant-pagination-item a,
+.dark .ant-pagination .ant-pagination-prev button,
+.dark .ant-pagination .ant-pagination-next button,
+.dark .ant-pagination .ant-pagination-jump-prev button,
+.dark .ant-pagination .ant-pagination-jump-next button {
+    color: #c8c8e8;
+}
+
+.dark .ant-pagination .ant-pagination-item {
+    background-color: #1e1e42;
+    border-color: #2a2a52;
+}
+
+.dark .ant-pagination .ant-pagination-item-active {
+    background-color: #8b8bf2;
+    border-color: #8b8bf2;
+}
+
+/* พื้น #8b8bf2 สว่าง ตัวอักษรต้องเข้ม (ตรงกับ --primary-foreground) ถ้าใช้ขาวจะ contrast แค่ ~2.9:1 */
+.dark .ant-pagination .ant-pagination-item-active a {
+    color: #12122c;
+}
+
+/* hover ของเลขปกติ: ยกพื้นขึ้นเบาๆ ไม่กระโดดไปเท่า active เพื่อให้แยกสองสถานะออกจากกัน */
+.dark .ant-pagination .ant-pagination-item:not(.ant-pagination-item-active):hover {
+    background-color: #2a2a5e;
+    border-color: #8b8bf2;
+}
+
+.dark .ant-pagination .ant-pagination-item:not(.ant-pagination-item-active):hover a {
+    color: #b6b6f8;
+}
+
+.dark .ant-pagination .ant-pagination-item-active:hover {
+    background-color: #9d9df6;
+    border-color: #9d9df6;
+}
+
+.dark .ant-pagination .ant-pagination-item-active:hover a {
+    color: #12122c;
+}
+
+.dark .ant-pagination .ant-pagination-prev button,
+.dark .ant-pagination .ant-pagination-next button {
+    background-color: #1e1e42;
+    border-color: #2a2a52;
+}
+
+.dark .ant-pagination .ant-pagination-prev:hover button,
+.dark .ant-pagination .ant-pagination-next:hover button {
+    border-color: #8b8bf2;
+    color: #8b8bf2;
+}
+
+.dark .ant-pagination .ant-pagination-disabled button,
+.dark .ant-pagination .ant-pagination-disabled:hover button {
+    color: #4a4a6a !important;
+    border-color: #2a2a52 !important;
+    background-color: #141432 !important;
+}
+
+.dark .ant-pagination .ant-pagination-total-text {
+    color: #a8a8c8;
+}
+
+.dark .ant-pagination .ant-pagination-jump-prev .ant-pagination-item-ellipsis,
+.dark .ant-pagination .ant-pagination-jump-next .ant-pagination-item-ellipsis {
+    color: #a8a8c8;
+}
+
+/* ─── ตัวเลือกจำนวนแถว (Select) ───
+   antd v6 เปลี่ยน markup ของ Select: ไม่มี .ant-select-selector / .ant-select-arrow อีกแล้ว
+   bg/border/radius อยู่ที่ .ant-select (root) ข้อความอยู่ใน .ant-select-content ลูกศรอยู่ใน .ant-select-suffix
+   (ยืนยันจาก outerHTML จริงใน browser — กฎที่เขียนตาม v5 จะไม่มีผลเลย)
+   ส่วน dropdown ถูก portal ไป body จึง scope ด้วย .ant-select-dropdown ตรงๆ ไม่ได้อยู่ใต้ .ant-pagination */
+.ant-pagination .ant-pagination-options .ant-select {
+    border-radius: 8px !important;
+    transition: border-color 150ms ease, box-shadow 150ms ease !important;
+}
+
+.ant-pagination .ant-pagination-options .ant-select-content {
+    font-size: 12px !important;
+}
+
+.ant-pagination .ant-pagination-options .ant-select-focused {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 25%, transparent) !important;
+}
+
+/* ─── ตัวเลือกจำนวนแถว — Dark Mode ─── */
+.dark .ant-pagination .ant-pagination-options .ant-select {
+    background-color: #1e1e42 !important;
+    border-color: #2a2a52 !important;
+}
+
+.dark .ant-pagination .ant-pagination-options .ant-select-content {
+    color: #c8c8e8 !important;
+}
+
+.dark .ant-pagination .ant-pagination-options .ant-select:hover,
+.dark .ant-pagination .ant-pagination-options .ant-select-focused {
+    border-color: #8b8bf2 !important;
+}
+
+.dark .ant-pagination .ant-pagination-options .ant-select-suffix {
+    color: #a8a8c8 !important;
+}
+
+.ant-select-dropdown {
+    border-radius: 10px !important;
+    padding: 4px !important;
+}
+
+.ant-select-dropdown .ant-select-item {
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    min-height: 28px !important;
+    line-height: 20px !important;
+}
+
+/* ตัวเลือกที่เลือกอยู่ — โทน primary ให้ตรงกับเลขหน้าที่ active */
+:root:not(.dark) .ant-select-dropdown .ant-select-item-option-selected {
+    background-color: #eef0fb !important;
+    color: #191960 !important;
+    font-weight: 600 !important;
+}
+
+:root:not(.dark) .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-selected) {
+    background-color: #f3f4fc !important;
+}
+
+.dark .ant-select-dropdown {
+    background-color: #1e1e42 !important;
+    border: 1px solid #2a2a52 !important;
+}
+
+.dark .ant-select-dropdown .ant-select-item {
+    color: #c8c8e8 !important;
+}
+
+.dark .ant-select-dropdown .ant-select-item-option-selected {
+    background-color: #8b8bf2 !important;
+    color: #12122c !important;
+    font-weight: 600 !important;
+}
+
+.dark .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-selected) {
+    background-color: #2a2a5e !important;
+}
+
+/* ─── ตัวเลือกจำนวนแถว — Light Mode ─── */
+:root:not(.dark) .ant-pagination .ant-pagination-options .ant-select {
+    background-color: #ffffff !important;
+    border-color: #dcdcf0 !important;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-options .ant-select-content {
+    color: #191960 !important;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-options .ant-select:hover,
+:root:not(.dark) .ant-pagination .ant-pagination-options .ant-select-focused {
+    border-color: #4545c7 !important;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-options .ant-select-suffix {
+    color: #5c5c78 !important;
+}
+
+/* ─── Ant Design Table — Dark Mode Override ─── */
+.dark .ant-table {
+    background-color: #12122c;
+    color: #e4e4f4;
+}
+
+.dark .ant-table,
+.dark .ant-table-wrapper .ant-table,
+.dark .ant-table-container,
+.dark .ant-table-title,
+.dark .ant-table-footer,
+.dark .ant-table-cell,
+.dark .ant-table-thead>tr>th,
+.dark .ant-table-tbody>tr>td,
+.dark .ant-table-tbody>tr>th,
+.dark .ant-table-summary>tr>td,
+.dark .ant-table-cell-fix-right-first::after,
+.dark .ant-table-cell-fix-left-last::after {
+    border-color: #2a2a52 !important;
+}
+
+.dark .ant-table-thead>tr>th {
+    background-color: #1a1a3a;
+    color: #c8c8e8;
+}
+
+.dark .ant-table-thead>tr>th::before {
+    background-color: #2a2a52 !important;
+}
+
+.dark .ant-table-tbody>tr>td {
+    background-color: #12122c;
+    color: #e4e4f4;
+}
+
+.dark .ant-table-tbody>tr:hover>td,
+.dark .ant-table-tbody>tr.ant-table-row:hover>td,
+.dark .ant-table-tbody>tr.ant-table-row-selected>td {
+    background-color: #1e1e42;
+}
+
+.dark .ant-table-cell-fix-left,
+.dark .ant-table-cell-fix-right {
+    background-color: #12122c;
+}
+
+.dark .ant-table-tbody>tr:hover>td.ant-table-cell-fix-left,
+.dark .ant-table-tbody>tr:hover>td.ant-table-cell-fix-right {
+    background-color: #1e1e42;
+}
+
+.dark .ant-table-placeholder .ant-table-cell,
+.dark .ant-table-tbody>tr.ant-table-placeholder:hover>td {
+    background-color: #12122c;
+}
+
+.dark .ant-empty-description {
+    color: #a8a8c8;
+}
+
+.dark .ant-table-summary>tr>td {
+    background-color: #1a1a3a;
+    color: #c8c8e8;
+}
+
+.dark .ant-table-column-sorter {
+    color: #6a6a92;
+}
+
+.dark .ant-table-column-sorter-up.active,
+.dark .ant-table-column-sorter-down.active {
+    color: #8b8bf2;
+}
+
+.dark .ant-table-filter-trigger {
+    color: #a8a8c8;
+}
+
+.dark .ant-table-filter-trigger:hover,
+.dark .ant-table-filter-trigger.active {
+    color: #8b8bf2;
+}
+
+.dark .ant-table-sticky-scroll-bar {
+    background-color: #2a2a52 !important;
+}
+
+/* ─── Ant Design — Light Mode (โทนน้ำเงินอ่อน ให้เข้ากับธีม) ─── */
+/* ใช้ :root:not(.dark) เพื่อ scope เฉพาะโหมดสว่าง ไม่ทับ override ของ dark mode ด้านบน */
+
+/* Table header: พื้นน้ำเงินอ่อน ตัวอักษรน้ำเงินเข้ม เส้นขอบโทนน้ำเงิน */
+:root:not(.dark) .ant-table-thead>tr>th {
+    background-color: #eef0fb !important;
+    /* color: #191960; */
+    border-color: #dcdcf0 !important;
+}
+
+:root:not(.dark) .ant-table-thead>tr>th::before {
+    background-color: #dcdcf0 !important;
+}
+
+:root:not(.dark) .ant-table,
+:root:not(.dark) .ant-table-wrapper .ant-table,
+:root:not(.dark) .ant-table-container,
+:root:not(.dark) .ant-table-cell,
+:root:not(.dark) .ant-table-tbody>tr>td,
+:root:not(.dark) .ant-table-summary>tr>td {
+    border-color: #e6e6f4 !important;
+}
+
+/* แถวชี้เมาส์: ไฮไลต์น้ำเงินอ่อนมาก */
+:root:not(.dark) .ant-table-tbody>tr:hover>td,
+:root:not(.dark) .ant-table-tbody>tr.ant-table-row:hover>td,
+:root:not(.dark) .ant-table-tbody>tr.ant-table-row-selected>td {
+    background-color: #f3f4fc !important;
+}
+
+/* Summary row: พื้นน้ำเงินอ่อนเหมือน header */
+:root:not(.dark) .ant-table-summary>tr>td {
+    background-color: #eef0fb;
+    color: #191960;
+}
+
+/* Sorter/Filter icon เมื่อ active: น้ำเงินธีม */
+:root:not(.dark) .ant-table-column-sorter-up.active,
+:root:not(.dark) .ant-table-column-sorter-down.active,
+:root:not(.dark) .ant-table-filter-trigger:hover,
+:root:not(.dark) .ant-table-filter-trigger.active {
+    color: #4545c7;
+}
+
+/* Pagination: หน้าที่เลือกอยู่เป็นน้ำเงินเข้มธีม ตัวอักษรขาว */
+/* เลขหน้าปกติ: ผูกสีเข้าธีมเอง ไม่ปล่อยให้ตกไปใช้ default ของ antd */
+:root:not(.dark) .ant-pagination .ant-pagination-item a {
+    color: #191960;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-item-active {
+    background-color: #191960;
+    border-color: #191960;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-item-active a {
+    color: #ffffff;
+}
+
+/* hover ต้องกัน active ออก ไม่งั้น :hover จะมี specificity สูงกว่ากฎ active
+   แล้วเปลี่ยนตัวอักษรขาวเป็น #4545c7 ทับบนพื้น #191960 → อ่านไม่ออก */
+:root:not(.dark) .ant-pagination .ant-pagination-item:not(.ant-pagination-item-active):hover {
+    background-color: #eef0fb;
+    border-color: #4545c7;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-item:not(.ant-pagination-item-active):hover a {
+    color: #4545c7;
+}
+
+/* active ตอน hover: สว่างขึ้นหนึ่งสเต็ปเพื่อให้รู้ว่าชี้อยู่ แต่ยังเข้มพอให้ตัวอักษรขาวอ่านออก */
+:root:not(.dark) .ant-pagination .ant-pagination-item-active:hover {
+    background-color: #272786;
+    border-color: #272786;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-item-active:hover a {
+    color: #ffffff;
+}
+
+:root:not(.dark) .ant-pagination .ant-pagination-prev:hover button,
+:root:not(.dark) .ant-pagination .ant-pagination-next:hover button {
+    border-color: #4545c7;
+    color: #4545c7;
+}
