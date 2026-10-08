@@ -36,18 +36,26 @@
 
 /* ─── เส้นตาราง / แถบสลับสี — คุมจากแผงปรับแต่งของผู้ใช้ ───
    --table-border-color / --table-border-width มาจาก inline style ของ wrapper
-   ต้องมี !important เพราะทับกฎ border-color ของธีมด้านล่างที่ใส่ !important ไว้ */
-.table-antd-overrides .ant-table-thead>tr>th,
-.table-antd-overrides .ant-table-tbody>tr>td {
+   scope ด้วย data attribute และ .ant-table-cell ให้ specificity สูงกว่ากฎสีเส้นของทั้งสองธีม */
+[data-table-divider] .table-antd-overrides .ant-table-thead>tr>th.ant-table-cell,
+[data-table-divider] .table-antd-overrides .ant-table-tbody>tr>td.ant-table-cell {
     border-color: var(--table-border-color, var(--border)) !important;
     border-width: 0 var(--table-border-width, 1px) var(--table-border-width, 1px) 0 !important;
     border-style: solid !important;
 }
 
-/* ไม่เอาเส้นคั่นคอลัมน์ — เหลือแต่เส้นแบ่งแถว */
-[data-table-divider="false"] .table-antd-overrides .ant-table-thead>tr>th,
-[data-table-divider="false"] .table-antd-overrides .ant-table-tbody>tr>td {
-    border-inline-end-color: transparent !important;
+[data-table-divider] .table-antd-overrides .ant-table-thead>tr>th.ant-table-cell::before {
+    background-color: var(--table-border-color, var(--border)) !important;
+}
+
+/* ไม่เอาเส้นคั่นคอลัมน์ — เหลือแต่เส้นแบ่งแถว รวมถึงปิด separator ของ antd ในหัวตาราง */
+[data-table-divider="false"] .table-antd-overrides .ant-table-thead>tr>th.ant-table-cell,
+[data-table-divider="false"] .table-antd-overrides .ant-table-tbody>tr>td.ant-table-cell {
+    border-inline-end-width: 0 !important;
+}
+
+[data-table-divider="false"] .table-antd-overrides .ant-table-thead>tr>th.ant-table-cell::before {
+    display: none !important;
 }
 
 /* แถบสลับสีแถวคู่ — specificity ต้องสูงกว่ากฎ background ของธีมด้านล่าง
