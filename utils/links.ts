@@ -46,6 +46,7 @@ export const navSections: NavSection[] = [
                 label: "ภาพรวม",
                 links: [
                     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboardIcon },
+                    { title: "ทดลอง Table", url: "/table-demo", icon: ClipboardListIcon },
                 ],
             },
         ],

@@ -53,7 +53,7 @@
 /* แถบสลับสีแถวคู่ — specificity ต้องสูงกว่ากฎ background ของธีมด้านล่าง
    เลี่ยงแถวที่ hover/selected อยู่ ไม่ให้ทับไฮไลต์ */
 [data-table-striped="true"] .table-antd-overrides .ant-table-tbody>tr.ant-table-row:nth-child(even):not(:hover):not(.ant-table-row-selected)>td {
-    background-color: color-mix(in oklch, var(--muted) 60%, transparent) !important;
+    background-color: color-mix(in srgb, var(--primary) 8%, var(--card)) !important;
 }
 
 .table-antd-overrides .ant-table-placeholder .ant-empty {
@@ -271,8 +271,8 @@
 }
 
 .dark .ant-table-thead>tr>th {
-    background-color: #1a1a3a;
-    color: #c8c8e8;
+    background-color: var(--primary) !important;
+    color: var(--primary-foreground);
 }
 
 .dark .ant-table-thead>tr>th::before {
@@ -314,22 +314,26 @@
     color: #c8c8e8;
 }
 
-.dark .ant-table-column-sorter {
-    color: #6a6a92;
+.ant-table-thead .ant-table-column-sorter,
+.ant-table-thead .ant-table-filter-trigger {
+    color: color-mix(in srgb, var(--primary-foreground) 80%, var(--primary)) !important;
 }
 
-.dark .ant-table-column-sorter-up.active,
-.dark .ant-table-column-sorter-down.active {
-    color: #8b8bf2;
+.ant-table-thead .ant-table-column-sorter-up,
+.ant-table-thead .ant-table-column-sorter-down {
+    color: inherit !important;
 }
 
-.dark .ant-table-filter-trigger {
-    color: #a8a8c8;
+.ant-table-thead .ant-table-column-sorter-up.active,
+.ant-table-thead .ant-table-column-sorter-down.active,
+.ant-table-thead .ant-table-filter-trigger:hover,
+.ant-table-thead .ant-table-filter-trigger.active {
+    color: var(--primary-foreground) !important;
 }
 
-.dark .ant-table-filter-trigger:hover,
-.dark .ant-table-filter-trigger.active {
-    color: #8b8bf2;
+.ant-table-thead .ant-table-filter-trigger:hover,
+.ant-table-thead .ant-table-filter-trigger.active {
+    background-color: color-mix(in srgb, var(--primary-foreground) 15%, var(--primary)) !important;
 }
 
 .dark .ant-table-sticky-scroll-bar {
@@ -341,8 +345,8 @@
 
 /* Table header: พื้นน้ำเงินอ่อน ตัวอักษรน้ำเงินเข้ม เส้นขอบโทนน้ำเงิน */
 :root:not(.dark) .ant-table-thead>tr>th {
-    background-color: #eef0fb !important;
-    /* color: #191960; */
+    background-color: var(--primary) !important;
+    color: var(--primary-foreground);
     border-color: #dcdcf0 !important;
 }
 
@@ -370,14 +374,6 @@
 :root:not(.dark) .ant-table-summary>tr>td {
     background-color: #eef0fb;
     color: #191960;
-}
-
-/* Sorter/Filter icon เมื่อ active: น้ำเงินธีม */
-:root:not(.dark) .ant-table-column-sorter-up.active,
-:root:not(.dark) .ant-table-column-sorter-down.active,
-:root:not(.dark) .ant-table-filter-trigger:hover,
-:root:not(.dark) .ant-table-filter-trigger.active {
-    color: #4545c7;
 }
 
 /* Pagination: หน้าที่เลือกอยู่เป็นน้ำเงินเข้มธีม ตัวอักษรขาว */
