@@ -3,7 +3,7 @@ import { create } from "zustand"
 
 import { DEV_AUTH_BYPASS } from "@/config/env"
 import { getStoredAccessToken, sessionStorageStore, storage } from "@/lib/storage"
-import { getSsoUserInfo } from "@/services/apiSSOService"
+import { getSsoLogoutState, getSsoUserInfo } from "@/services/apiSSOService"
 
 import { normalizePermissions } from "@/utils/permissions"
 
@@ -16,6 +16,7 @@ type AppState = {
     expiresAt: number | null;
     permissions: Permission[];
     isInitialized: boolean;
+    hasLoggedOut: boolean;
     setSsoSession: ( token: string, user: SsoUserInfo, refreshToken?: string, expiresIn?: number ) => void;
     initializeSession: () => Promise<void>;
     logout: () => void;
@@ -59,6 +60,7 @@ export const useAppStore = create<AppState>(( set, get ) => ({
     expiresAt: null,
     permissions: [],
     isInitialized: false,
+    hasLoggedOut: false,
 
     setSsoSession: ( token, user, refreshToken, expiresIn ) => {
         const expiresAt = getExpiration(token, expiresIn)
@@ -74,7 +76,7 @@ export const useAppStore = create<AppState>(( set, get ) => ({
         if ( refreshToken ) sessionStorageStore.setItem("refreshToken", refreshToken)
         else sessionStorageStore.removeItem("refreshToken")
         sessionVersion += 1
-        set({ accessToken: token, userDetail: user, permissions, expiresAt, isInitialized: true })
+        set({ accessToken: token, userDetail: user, permissions, expiresAt, isInitialized: true, hasLoggedOut: false })
     },
 
     initializeSession: async () => {
@@ -98,7 +100,7 @@ export const useAppStore = create<AppState>(( set, get ) => ({
                 if ( expiresAt !== null && expiresAt <= Date.now() ) throw new Error("SSO session expired")
                 // Validate with SSO; decoding a JWT does not verify its signature.
                 const user = await getSsoUserInfo(token)
-                if ( version !== sessionVersion ) return
+                if ( version !== sessionVersion || getStoredAccessToken() !== token || getSsoLogoutState().isLoggingOut ) return
                 get().setSsoSession(
                     token, user, sessionStorageStore.getItem("refreshToken") ?? undefined,
                     expiresAt === null ? undefined : (expiresAt - Date.now()) / 1000,
@@ -114,6 +116,6 @@ export const useAppStore = create<AppState>(( set, get ) => ({
         sessionVersion += 1
         storage.clear()
         sessionStorageStore.clear()
-        set({ userDetail: null, accessToken: "", permissions: [], expiresAt: null, isInitialized: true })
+        set({ userDetail: null, accessToken: "", permissions: [], expiresAt: null, isInitialized: true, hasLoggedOut: true })
     },
 }))
