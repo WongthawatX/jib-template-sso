@@ -14,6 +14,49 @@
 .ant-table-body,
 .ant-table-content {
     scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--primary) 50%, transparent) transparent;
+}
+
+.ant-table-body:hover,
+.ant-table-content:hover {
+    scrollbar-color: color-mix(in srgb, var(--primary) 75%, transparent) transparent;
+}
+
+.ant-table-body::-webkit-scrollbar,
+.ant-table-content::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.ant-table-body::-webkit-scrollbar-track,
+.ant-table-content::-webkit-scrollbar-track,
+.ant-table-body::-webkit-scrollbar-corner,
+.ant-table-content::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+.ant-table-body::-webkit-scrollbar-thumb,
+.ant-table-content::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 50%, transparent);
+}
+
+.ant-table-body::-webkit-scrollbar-thumb:hover,
+.ant-table-content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--primary) 75%, transparent);
+}
+
+.ant-table-sticky-scroll {
+    background: transparent !important;
+}
+
+.ant-table-sticky-scroll-bar {
+    background: color-mix(in srgb, var(--primary) 50%, transparent) !important;
+    border-radius: 999px;
+}
+
+.ant-table-sticky-scroll-bar:hover {
+    background: color-mix(in srgb, var(--primary) 75%, transparent) !important;
 }
 
 /* ตารางทรงกะทัดรัด — DraggableColumnsTable ใส่คลาสนี้ให้ทุกตารางอยู่แล้ว
@@ -342,10 +385,6 @@
 .ant-table-thead .ant-table-filter-trigger:hover,
 .ant-table-thead .ant-table-filter-trigger.active {
     background-color: color-mix(in srgb, var(--primary-foreground) 15%, var(--primary)) !important;
-}
-
-.dark .ant-table-sticky-scroll-bar {
-    background-color: #2a2a52 !important;
 }
 
 /* ─── Ant Design — Light Mode (โทนน้ำเงินอ่อน ให้เข้ากับธีม) ─── */
