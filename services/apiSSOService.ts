@@ -3,6 +3,8 @@ import { jwtDecode } from "jwt-decode"
 import { DEV_AUTH_BYPASS, env } from "@/config/env"
 import { path } from "@/services/constants"
 
+import { normalizePermissions } from "@/utils/permissions"
+
 import type { Permission } from "@/utils/permissions"
 
 const request = async ( url: string, options?: RequestInit ): Promise<{ data: unknown }> => {
@@ -70,17 +72,6 @@ export type ChangeOwnPasswordResult = {
 
 const isRecord = ( value: unknown ): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
-
-const isPermission = ( value: unknown ): value is Permission =>
-    ( typeof value === "string" && value.length > 0 ) ||
-    ( isRecord(value) &&
-        typeof value.menu_id === "number" &&
-        typeof value.views === "number" &&
-        typeof value.creates === "number" &&
-        typeof value.edits === "number" &&
-        typeof value.deletes === "number" &&
-        typeof value.approves === "number" &&
-        typeof value.printed === "number" )
 
 const readOptionalString = ( data: Record<string, unknown>, key: string ): string | undefined =>
     typeof data[key] === "string" ? data[key] : undefined
@@ -222,7 +213,7 @@ export const getSsoUserInfo = async ( accessToken: string ): Promise<SsoUserInfo
         branch: readOptionalString(response.data, "branch"),
         system_role: readOptionalString(response.data, "system_role"),
         roles: Array.isArray(response.data.roles) ? response.data.roles.filter(( role ): role is string => typeof role === "string") : [],
-        permissions: Array.isArray(response.data.permissions) ? response.data.permissions.filter(isPermission) : [],
+        permissions: normalizePermissions(response.data.permissions),
     }
 }
 

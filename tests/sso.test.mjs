@@ -290,3 +290,85 @@ test("logout honors an explicit endpoint and surfaces network errors", async () 
     await assert.rejects(rt.load("services/apiSSOService").logoutSso())
     assert.equal(destination, "https://sso.test/custom/logout")
 })
+
+test("permissions use exact actions and resource/global wildcards like Procon", () => {
+    const { hasPermission, PERMISSION_ACTIONS } = runtime().load("utils/permissions")
+    assert.equal(hasPermission([ "jobs.view" ], "jobs", "view"), true)
+    assert.equal(hasPermission([ "jobs.view" ], "jobs", "edit"), false)
+    assert.equal(hasPermission([ "jobs.*" ], "jobs", "approve"), true)
+    assert.equal(hasPermission([ "jobs.*" ], "other", "view"), false)
+    assert.equal(hasPermission([ "*" ], "other", "cancel"), true)
+    assert.equal(hasPermission([], "jobs", "view"), false)
+    assert.deepEqual(Array.from(PERMISSION_ACTIONS, ( action ) => action.key), [ "view", "create", "edit", "approve", "print", "cancel" ])
+})
+
+test("Sidebar removes unauthorized links and empty groups/sections; admin role grants nothing", () => {
+    const rt = runtime()
+    const { navSections } = rt.load("utils/links")
+    const { filterNavSections } = rt.load("utils/navigationPermissions")
+    const store = rt.load("store/useAppStore").useAppStore
+    store.getState().setSsoSession("opaque", { sub: "admin", system_role: "admin", permissions: [] }, undefined, 3600)
+    const visible = filterNavSections(navSections, store.getState().permissions)
+    const links = visible.flatMap(( section ) => section.groups.flatMap(( group ) => group.links))
+    assert.deepEqual(Array.from(links, ( link ) => link.url), [ "/dashboard" ])
+
+    const protectedLinks = navSections.flatMap(( section ) => section.groups.flatMap(( group ) => group.links))
+        .filter(( link ) => link.resource)
+    for ( const permitted of protectedLinks ) {
+        const filtered = filterNavSections(navSections, [ permitted.resource + ".view" ])
+        assert.ok(filtered.every(( section ) => section.groups.length && section.groups.every(( group ) => group.links.length)))
+        const urls = filtered.flatMap(( section ) => section.groups.flatMap(( group ) => group.links)).map(( link ) => link.url)
+        assert.ok(urls.includes(permitted.url))
+        assert.equal(urls.length, 2)
+        assert.equal(filterNavSections(navSections, [ permitted.resource + ".create" ]).length, 1)
+    }
+    assert.equal(filterNavSections(navSections, [ "*" ]).length, navSections.length)
+})
+
+test("route permissions match Sidebar and protect create/edit URLs without prefix collisions", () => {
+    const rt = runtime()
+    const { navSections } = rt.load("utils/links")
+    const { getRoutePermission } = rt.load("utils/navigationPermissions")
+    const links = navSections.flatMap(( section ) => section.groups.flatMap(( group ) => group.links))
+    for ( const link of links.filter(( item ) => item.resource) ) {
+        assert.equal(getRoutePermission(link.url).resource, link.resource)
+        assert.equal(getRoutePermission(link.url).action, "view")
+        assert.equal(getRoutePermission(link.url + "/create").action, "create")
+        assert.equal(getRoutePermission(link.url + "/123/edit").action, "edit")
+    }
+    assert.equal(getRoutePermission("/dashboard"), undefined)
+    assert.equal(getRoutePermission("/profile"), undefined)
+    assert.equal(getRoutePermission("/permissions"), undefined)
+    assert.equal(getRoutePermission("/users-other"), undefined)
+    const nested = links.find(( item ) => item.url === "/users/permissions")
+    if ( nested ) assert.equal(getRoutePermission(nested.url).resource, nested.resource)
+})
+
+test("SSO drops legacy menu objects and malformed permissions instead of granting access", async () => {
+    const rt = runtime({ api: "https://sso.example/api", fetcher: async () => ({
+        ok: true,
+        json: async () => ({ sub: "123", system_role: "admin", permissions: [ "users.view", { menu_id: 1, views: 1 }, null, 1 ] }),
+    }) })
+    const user = await rt.load("services/apiSSOService").getSsoUserInfo("opaque")
+    assert.deepEqual(user.permissions, [ "users.view" ])
+    const store = rt.load("store/useAppStore").useAppStore
+    store.getState().setSsoSession("opaque", user, undefined, 3600)
+    assert.deepEqual(store.getState().permissions, [ "users.view" ])
+    store.getState().logout()
+    assert.equal(store.getState().permissions.length, 0)
+})
+
+test("stored permissions are validated and the permission table includes unknown resources", () => {
+    const rt = runtime()
+    const { sessionStorageStore, storage } = rt.load("lib/storage")
+    const { getStoredPermissions, buildPermissionRows } = rt.load("utils/permissions")
+    storage.setItem("permissions", JSON.stringify([ "*" ]))
+    sessionStorageStore.setItem("permissions", JSON.stringify([ "custom.view", null, { menu_id: 1 } ]))
+    assert.deepEqual(Array.from(getStoredPermissions()), [ "custom.view" ])
+    const rows = buildPermissionRows(getStoredPermissions())
+    const custom = rows.find(( row ) => row.resource === "custom")
+    assert.equal(custom.view, true)
+    assert.equal(custom.edit, false)
+    sessionStorageStore.setItem("permissions", "invalid-json")
+    assert.equal(getStoredPermissions().length, 0)
+})

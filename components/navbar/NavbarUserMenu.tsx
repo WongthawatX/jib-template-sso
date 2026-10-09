@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { KeyRoundIcon, LogOutIcon, User, UserIcon } from "lucide-react"
+import { KeyRoundIcon, LogOutIcon, ShieldCheckIcon, User, UserIcon } from "lucide-react"
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu"
@@ -76,6 +76,9 @@ export default function NavbarUserMenu() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => router.push("/profile")}>
                         <UserIcon /> ข้อมูลผู้ใช้
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/permissions")}>
+                        <ShieldCheckIcon /> สิทธิ์การใช้งาน
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setIsChangePasswordOpen(true)}>
                         <KeyRoundIcon /> เปลี่ยนรหัสผ่าน

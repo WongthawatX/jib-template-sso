@@ -9,3 +9,5 @@ export { useTablePrefs, DEFAULT_PREFS } from "./tablePrefs"
 export type { Density, PinSide, TablePrefs, WidthMode } from "./tablePrefs"
 export { default as TableDemo } from "./TableDemo"
 
+
+export { default as TablePermission } from "./TablePermission"

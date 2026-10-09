@@ -5,6 +5,8 @@ import { DEV_AUTH_BYPASS } from "@/config/env"
 import { getStoredAccessToken, sessionStorageStore, storage } from "@/lib/storage"
 import { getSsoUserInfo } from "@/services/apiSSOService"
 
+import { normalizePermissions } from "@/utils/permissions"
+
 import type { SsoUserInfo } from "@/services/apiSSOService"
 import type { Permission } from "@/utils/permissions"
 
@@ -22,7 +24,7 @@ type AppState = {
 let initialization: Promise<void> | null = null
 let sessionVersion = 0
 
-// dev bypass: ผู้ใช้ปลอม role admin (เห็นทุกเมนู) + สิทธิ์ครบทุก action ทุกเมนู
+// dev bypass: สิทธิ์จำลอง "*" แบบ Procon; production รับสิทธิ์จาก SSO เท่านั้น
 const DEV_MOCK_TOKEN = "dev-mock-access-token"
 const DEV_SESSION_TTL_SECONDS = 8 * 60 * 60
 const DEV_MOCK_USER: SsoUserInfo = {
@@ -36,15 +38,7 @@ const DEV_MOCK_USER: SsoUserInfo = {
     branch: "HQ",
     system_role: "admin",
     roles: [ "admin" ],
-    permissions: [ 1, 2, 3, 4 ].map(( menu_id ) => ({
-        menu_id,
-        views: 1,
-        creates: 1,
-        edits: 1,
-        deletes: 1,
-        approves: 1,
-        printed: 1,
-    })),
+    permissions: [ "*" ],
 }
 
 const getExpiration = ( token: string, expiresIn?: number ): number | null => {
@@ -69,7 +63,7 @@ export const useAppStore = create<AppState>(( set, get ) => ({
     setSsoSession: ( token, user, refreshToken, expiresIn ) => {
         const expiresAt = getExpiration(token, expiresIn)
         if ( expiresAt !== null && expiresAt <= Date.now() ) throw new Error("SSO session expired")
-        const permissions = user.permissions ?? []
+        const permissions = normalizePermissions(user.permissions)
         for ( const key of [ "accessToken", "userData", "permissions", "refreshToken", "expiresAt" ] ) {
             storage.removeItem(key)
         }
