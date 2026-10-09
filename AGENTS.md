@@ -35,7 +35,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | Framework | **Next.js 16.3.6 (App Router) + React 19.2.8 + TypeScript** |
 | Dev server | `next dev` + **Turbopack** (`npm run dev` → port 4000) |
 | Styling | Tailwind CSS v4 (`@tailwindcss/postcss`) + `tw-animate-css` |
-| UI | shadcn/ui (style `base-nova`) บน **`@base-ui/react`** (ไม่ใช่ radix, ไม่มี antd) |
+| UI | shadcn/ui (style `base-nova`) บน **`@base-ui/react`** (ไม่ใช่ radix); ตารางรายการใช้ **antd ผ่าน `TableTemplate`** |
 | Routing | Next.js App Router (file-based ใต้ `app/`) |
 | Global State | Zustand v5 (`store/`) — *ยังต้องติดตั้งแพ็กเกจ* |
 | `cn()` | แพ็กเกจ `cn` (re-export ผ่าน `@/lib/utils`) |
@@ -131,6 +131,45 @@ setItems(( prev ) => prev.filter(( item ) => item.id !== id ))
 - function call argument เดียวที่เป็น simple value ไม่ต้องเว้น: `useState(false)`, `router.push("/login")`
 - **บรรทัดยาวไม่เกิน ~140 ตัวอักษร** (ยืดหยุ่นได้กับ className ยาว)
 
+### การจัดรูปแบบคอลัมน์ตารางและ JSX (บังคับ)
+
+- นิยามคอลัมน์ตาราง เช่น `TableColumnsType<T>` ต้องแยก object ของแต่ละคอลัมน์เป็นหลายบรรทัด และเขียน **หนึ่ง property ต่อหนึ่งบรรทัด** แม้ข้อความจะสั้น
+- เรียง property ของคอลัมน์เป็น `key`, `dataIndex` (ถ้ามี), `title`, `align`, `width`, property อื่น ๆ และ `render`
+- ใส่ trailing comma หลัง property สุดท้ายของ object หลายบรรทัด รวมถึง `render` และหลังแต่ละ object ใน array
+- JSX ที่มี props ตั้งแต่ 3 ตัวขึ้นไป หรือยาวเกิน ~140 ตัวอักษร ต้องแยก **หนึ่ง prop ต่อหนึ่งบรรทัด** และวาง `>` / `/>` ปิด tag แยกบรรทัด
+- JSX ที่มี children ให้แยก children และ closing tag เป็นคนละบรรทัดเมื่อ opening tag เป็นหลายบรรทัด
+- `render` ที่คืน JSX หลายบรรทัดต้องครอบด้วย `(...)`; conditional JSX หลายบรรทัดใช้ `{ condition ? (...) : null }`
+- ใช้ indentation 4 spaces และลบ whitespace ท้ายบรรทัด ไม่ยุบโค้ดกลับเป็นบรรทัดยาวเพื่อประหยัดพื้นที่
+- เมื่อแก้เฉพาะรูปแบบโค้ด ต้องคงค่า props, เงื่อนไข และพฤติกรรมเดิม
+
+```tsx
+const columns: TableColumnsType<OnsiteUser> = [
+    {
+        key: "full_name",
+        dataIndex: "full_name",
+        title: "ชื่อ - นามสกุล",
+        align: "center",
+        width: 150,
+        render: ( value: string ) => <ClampedCell text={value} />,
+    },
+    {
+        key: "actions",
+        title: "จัดการ",
+        align: "center",
+        width: 80,
+        render: ( _: unknown, user: OnsiteUser ) => (
+            <Button
+                type="button"
+                size="icon-sm"
+                onClick={() => onEdit(user)}
+            >
+                <Pencil />
+            </Button>
+        ),
+    },
+]
+```
+
 > หมายเหตุ: ไฟล์ที่ scaffold มาจาก `create-next-app` (`app/layout.tsx`, `app/page.tsx`) ยังเป็น 2-space + semicolon อยู่ เมื่อแก้ไฟล์เหล่านี้ให้ปรับเข้าสไตล์โปรเจกต์ทีละไฟล์
 
 ---
@@ -166,6 +205,31 @@ import type { AppState } from "@/store/useAppStore"
 
 - `"use client"` ถ้ามี **ต้องอยู่บรรทัดแรกสุด** ก่อน import ทุกตัว
 - type-only import ต้องใช้ `import type { ... }` เสมอ
+
+### Import Component ผ่าน `index.ts` (บังคับ)
+
+- การเรียกใช้ custom component จากหน้าหรือฟีเจอร์อื่น **ต้อง import ผ่าน `index.ts` ของโฟลเดอร์นั้น** ห้ามชี้ตรงไปที่ไฟล์ component
+- ทุกโฟลเดอร์ custom component ต้องมี `index.ts` เป็น barrel export; เพิ่ม export เมื่อสร้าง component ใหม่
+- ใช้ named export ใน barrel เช่น `export { default as UserDeleteDialog } from "./UserDeleteDialog"` แล้ว import ด้วยชื่อ component
+- Component หลายตัวจากโฟลเดอร์เดียวกันให้รวมใน import เดียว; ใช้ `@/components/<folder>` เมื่อข้ามฟีเจอร์ และ relative folder path เมื่ออยู่ใกล้กัน
+- Shared types ที่ผู้เรียกต้องใช้ให้ `export type` ผ่าน barrel และเรียกด้วย `import type` เช่นเดียวกัน
+- ภายในโฟลเดอร์เดียวกัน ใช้ barrel เมื่อไม่เกิด circular dependency; หาก `index.ts` export component แม่ที่ import component ลูก ให้ import ลูกตรงด้วย relative path เพื่อหลีกเลี่ยงวงจร **ห้ามแก้ด้วยการพึ่งลำดับ export**
+- ข้อยกเว้น: shadcn primitives ใน `components/ui` ยังคง import จากไฟล์ตามแพตเทิร์นที่ generate มา เช่น `../ui/button`; กฎ barrel นี้ใช้กับ custom component ของโปรเจกต์
+- เมื่อแก้ import ในไฟล์เดิม ให้รวม custom component imports ผ่าน barrel ตามกฎนี้ และลบ import ที่ไม่ได้ใช้
+
+```tsx
+// ✅ เรียกใช้ผ่าน barrel ของโฟลเดอร์
+import { FilterSelect, SelectSearch } from "@/components/select"
+import { UserDeleteDialog, UserEditorDialog, UsersTable } from "@/components/users"
+
+// ❌ เรียกใช้จากภายนอกโฟลเดอร์ด้วยไฟล์ตรง
+import UserDeleteDialog from "@/components/users/UserDeleteDialog"
+
+// components/users/index.ts
+export { default as UserDeleteDialog } from "./UserDeleteDialog"
+export { default as UserEditorDialog } from "./UserEditorDialog"
+export { default as UsersTable } from "./UsersTable"
+```
 
 ---
 
@@ -214,6 +278,48 @@ export default function ExampleCard({ title, className }: Props) {
 ```
 
 - ไฟล์ที่ใหญ่/มีหลายส่วน ให้แตกเป็น sub-component แล้ว compose ในตัวแม่ (ดู `components/navbar/` ที่แตกเป็น `NavbarClock`, `NavbarUserMenu`, ...)
+
+### แนวทาง Design หน้ารายการและจัดการข้อมูล (บังคับ)
+
+อ้างอิง `../jib-onsite-service-v02/components/jobs/AdminJobs.tsx` และ `../jib-onsite-service-v02/components/users/Users.tsx` เป็นตัวอย่างของหน้ารายการ เพื่อให้หน้าตาไปในทางเดียวกันทั้งระบบ
+
+- Layout หลักใช้ `flex min-w-0 flex-col gap-3`; หัวหน้าเป็น `flex flex-wrap items-center justify-between gap-2`
+- ด้านซ้ายแสดง `h1` พร้อม lucide icon (`size-5 text-primary`), หัวข้อ `text-lg font-semibold` และคำอธิบาย `text-xs text-muted-foreground`
+- ด้านขวาจัดปุ่มใน `flex gap-2`: โหลดใหม่ใช้ `Button variant="outline" size="icon-sm"` พร้อม `RotateCcw`, ปุ่มเพิ่มใช้ `size="sm"` พร้อม `Plus data-icon="inline-start"`; คุมสิทธิ์ด้วย `usePermission`
+- ปุ่มโหลดใหม่บนหัวหน้าให้ล้างตัวกรองและกลับหน้าแรกด้วย พร้อม `title` และ `aria-label` อธิบายการทำงาน
+- การ์ดสรุปจำนวนใช้เฉพาะเมื่อช่วยอ่านภาพรวม; อยู่ใต้หัวหน้าและแสดงขนาดกระชับ ไม่เพิ่มการ์ดเพื่อเติมพื้นที่
+- **ไม่ครอบตัวกรองและตารางรายการหลักด้วย Card อีกชั้น** ให้จัดวางตรงในพื้นที่หน้าของ AppShell เหมือน job-admin; Card ใช้กับส่วนสรุปหรือเนื้อหาเฉพาะส่วน
+
+**ช่องค้นหาและตัวกรอง**
+
+- ใช้ `FieldGroup` กับ responsive grid `grid grid-cols-6 gap-2 lg:grid-cols-12`; ช่องค้นหา `col-span-6 lg:col-span-4` และแบ่งพื้นที่ที่เหลือให้ตัวกรองตามจำนวนจริง
+- ช่องค้นหาใช้ `Field` + `FieldLabel` (ซ่อนได้ด้วย `sr-only`) และ `<form role="search" className="relative">`; `Input className="pr-10"` คู่กับปุ่ม `Search` ด้านขวา `absolute right-0.5 top-0.5`, `size="icon-sm"`
+- เก็บข้อความที่กำลังพิมพ์แยกจากคำค้นที่ใช้กรอง; กด Enter หรือปุ่มค้นหาเพื่อใช้คำค้น เหมือน job-admin
+- ตัวกรองรายการใช้ `SelectSearch` จาก `components/select`; เมื่อต้องการ label และ grid wrapper ให้ใช้ `FilterSelect` จากโฟลเดอร์เดียวกัน ห้ามสร้าง wrapper ซ้ำในหน้าหลัก
+- ส่ง `options` เป็น `{ value, label }`; แสดง label ภาษาไทยที่ผู้ใช้เข้าใจ ไม่แสดงค่าภายใน เช่น `__all__` หรือ `employee`
+- ค่าไม่เลือกใช้ `undefined` ใน `SelectSearch`; การล้างประเภทบัญชีต้องแปลงเป็นค่าที่หมายถึงทุกบัญชีตาม logic ของหน้านั้น
+- เปลี่ยนตัวกรอง ค้นหา หรือล้างตัวกรองแล้วต้องกลับ pagination ไปหน้าแรก; การล้างต้องคืนค่าเริ่มต้นของหน้าและล้างข้อความค้นหาที่กำลังพิมพ์ด้วย
+
+**ตารางรายการ**
+
+- ตารางรายการหลักใช้ **`TableTemplate<T>` จาก `components/table` เท่านั้น** ตาม `TableAdminJobs` / `UsersTable`; ห้ามสร้างตารางอีกชุดด้วย `<Table>` จาก antd หรือ shadcn โดยตรงสำหรับหน้าลักษณะเดียวกัน
+- แยก component ตารางออกจากหน้าหลัก; ใช้ `TableColumnsType<T>` แบบ typed, `rowKey` เป็น id ที่คงที่ และ `storageKey` เฉพาะตาราง เช่น `admin_jobs` / `onsite_users`
+- ใช้ค่ากลางของ `TableTemplate`: แถว compact, เส้นขอบ, ขนาดตัวอักษร, การลาก/ซ่อน/ตรึงคอลัมน์ และปุ่มปรับแต่งตาราง ไม่กำหนดหน้าตาชุดใหม่ในแต่ละหน้า
+- ปล่อยให้ `TableTemplate` ปรับความสูงตามพื้นที่หน้าจอและเลื่อนแถวภายในตาราง เพื่อให้ header และ pagination อยู่ในพื้นที่หน้า ไม่ hardcode ความสูงแยกแต่ละหน้า
+- ใช้ pagination ของ `TableTemplate` (จำนวนแถวต่อหน้า 20/50/100 และข้อความรวมจำนวนรายการ); ส่งข้อมูลที่กรองแล้วทั้งหมดเข้า `dataSource` ไม่ `slice()` ซ้ำหรือสร้าง pagination ภายนอก
+- กำหนด `key`, `dataIndex`, `title`, `align`, `width` ให้ชัดเจนตามเนื้อหา; ข้อความยาวใช้ **`ClampedCell`** เพื่อไม่ขยายคอลัมน์และดูค่าเต็มผ่าน tooltip
+- ปุ่มหลักในแถวใช้ `variant="default" size="icon-sm"`; ปุ่มเสริมใช้ `variant="secondary"`, การลบใช้ `variant="destructive"`; ทุกปุ่มไอคอนมี `aria-label` และ `title`
+- ส่ง `loading` ให้ตาราง; แสดงข้อผิดพลาดและปุ่มลองใหม่ผ่าน `Alert`, ใช้ข้อความ empty state ที่แยกจากการโหลดล้มเหลว
+- หากต้องปรับมาตรฐานของทุกตาราง ให้แก้ component กลาง; override เฉพาะหน้าทำเมื่อมีความต้องการเฉพาะจริง
+
+**การแยก Component**
+
+- หน้าหลักรับผิดชอบการโหลดข้อมูล state ตัวกรอง สิทธิ์ และ compose component
+- แยกฟอร์มเพิ่ม/แก้ไข เปลี่ยนรหัสผ่าน และ Dialog ยืนยันลบเป็นไฟล์ในโฟลเดอร์ฟีเจอร์ เช่น `UserEditorDialog`, `UserPasswordDialog`, `UserDeleteDialog`; ห้ามฝัง Dialog ขนาดใหญ่ไว้ในหน้าหลัก
+- Component ที่ใช้ข้ามฟีเจอร์อยู่ในโฟลเดอร์กลาง เช่น `components/select/FilterSelect.tsx`; export ผ่าน `index.ts` และ import มาใช้
+- Dialog ยืนยันลบต้องมี Title, Description, ปุ่มยกเลิก/ยืนยัน, สถานะกำลังทำงาน และข้อความ error; ป้องกันการยืนยันซ้ำและการปิดระหว่างคำขอลบ
+
+- สำหรับ template ให้ตรวจ component ที่มีจริงก่อนใช้งาน; หากยังไม่มี wrapper เช่น `FilterSelect` หรือ Dialog ของฟีเจอร์ ให้สร้างตามแพตเทิร์นกลางและเพิ่ม barrel export ก่อน import
 
 ---
 
