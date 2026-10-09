@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 
+import type { RefObject } from "react"
+
 type Options = {
     /** ความสูงขั้นต่ำของพื้นที่แถว (px) กันกรณีพื้นที่เหลือน้อยมาก (default: 160) */
     min?: number;
@@ -10,7 +12,6 @@ type Options = {
 }
 
 const SCROLL_VIEWPORT = '[data-slot="scroll-area-viewport"]'
-const ROW = ".ant-table-tbody .ant-table-row:not(.ant-table-measure-row)"
 
 /** คลาดเคลื่อนได้เท่านี้ถือว่าพอดีแล้ว กันไม่ให้ไล่ปรับเพราะเศษ subpixel */
 const TOLERANCE = 1
@@ -43,7 +44,7 @@ const getBottomInset = ( from: HTMLElement, until: HTMLElement ): number => {
  * ทำไมคืนความสูง ไม่ใช่ pageSize:
  * pageSize เป็นค่าไม่ต่อเนื่อง (14 หรือ 15 ไม่มีระหว่างกลาง) คลาดเคลื่อน 1px ก็ทำให้แถวหาย/เพิ่มทั้งแถว
  * แล้วความสูงตารางที่เปลี่ยนก็ย้อนกลับมาเป็น input ของการวัดอีก → แกว่งไม่จบ
- * ส่วนความสูงเป็นค่าต่อเนื่อง และเมื่อกำหนด `scroll.y` ความสูงตารางจะคงที่ไม่ขึ้นกับจำนวนแถวในหน้า
+ * ส่วนความสูงเป็นค่าต่อเนื่อง แต่ `scroll.y` เป็น max-height: หน้าที่มีแถวน้อยจะสูงน้อยกว่าค่าที่ตั้งไว้
  *
  * วิธีหาค่า — ไม่ไล่วัดชิ้นส่วนภายในของ antd เลย (เปราะ เคยพลาดเพราะ scrollbar แนวนอนอยู่ในกล่อง
  * body แล้วจึงหักซ้ำ และ margin ของ pagination ที่ล้นออกมา) ใช้หลักเดียวคือ:
@@ -54,7 +55,10 @@ const getBottomInset = ( from: HTMLElement, until: HTMLElement ): number => {
  * จึงต้องข้ามไปก่อน และต้องรีเซ็ตโควตาการชดเชยทุกครั้งที่ geometry เปลี่ยน (ไม่ใช่แค่ตอนย่อ/ขยายจอ)
  * ไม่งั้นโควตาจะหมดไปตอน layout ยังไม่นิ่ง แล้วค้างอยู่ที่ค่าที่ผิด
  */
-export function useTableScrollHeight<T extends HTMLElement>( options: Options = {} ) {
+export function useTableScrollHeight<T extends HTMLElement>( options: Options = {} ): {
+    wrapperRef: RefObject<T | null>;
+    scrollY: number | undefined;
+} {
     const { min = 160, disabled = false } = options
 
     const wrapperRef = useRef<T>(null)
@@ -71,9 +75,14 @@ export function useTableScrollHeight<T extends HTMLElement>( options: Options = 
         const scrollParent = wrapper.closest<HTMLElement>(SCROLL_VIEWPORT)
         if ( !scrollParent ) return
 
+        stallsRef.current = 0
+        lastErrorRef.current = Number.POSITIVE_INFINITY
+        lastGeometryRef.current = ""
+        let frame: number | undefined
+
         const measure = () => {
-            // ยังโหลดอยู่ / ไม่มีข้อมูล → ไม่มีอะไรให้วัดที่เชื่อถือได้ รอ observer เรียกอีกรอบ
-            const isReady = wrapper.querySelector(".ant-table-pagination") ?? wrapper.querySelector(ROW)
+            // รอให้ antd สร้างตารางก่อน รวมถึงตารางว่างเพื่อจำกัดความสูงตั้งแต่ก่อนข้อมูลมาถึง
+            const isReady = wrapper.querySelector(".ant-table")
             if ( !isReady ) return
 
             const viewportRect = scrollParent.getBoundingClientRect()
@@ -84,7 +93,11 @@ export function useTableScrollHeight<T extends HTMLElement>( options: Options = 
 
             // geometry = ขนาด viewport + ตำแหน่งที่ตารางเริ่ม ถ้าเปลี่ยนถือเป็นรอบใหม่ ให้โควตาใหม่
             // (ความสูงของ filter bar / ชิปสถานะ เปลี่ยนได้ตอนข้อมูลมาถึง ซึ่งไม่ใช่การย่อ/ขยายจอ)
-            const geometry = `${scrollParent.clientWidth}x${scrollParent.clientHeight}@${offsetTop}@${bottomInset}`
+            const body = wrapper.querySelector<HTMLElement>(".ant-table-body")
+                ?? wrapper.querySelector<HTMLElement>(".ant-table-content")
+            const bodyHeight = body?.getBoundingClientRect().height ?? 0
+            const overhead = Math.round( wrapper.getBoundingClientRect().height - bodyHeight )
+            const geometry = `${scrollParent.clientWidth}x${scrollParent.clientHeight}@${offsetTop}@${bottomInset}@${overhead}`
             if ( geometry !== lastGeometryRef.current ) {
                 lastGeometryRef.current = geometry
                 stallsRef.current = 0
@@ -92,7 +105,8 @@ export function useTableScrollHeight<T extends HTMLElement>( options: Options = 
             }
 
             // ระยะที่ขอบล่างตารางห่างจากเป้า บวก = ยังเหลือที่ว่าง, ลบ = ล้นออกไป
-            const slack = viewportRect.bottom - bottomInset - GUARD - wrapper.getBoundingClientRect().bottom
+            const slack = viewportRect.bottom - bottomInset - GUARD
+                - wrapper.getBoundingClientRect().bottom - scrollParent.scrollTop
             const error = Math.abs(slack)
 
             if ( error <= TOLERANCE ) {
@@ -109,29 +123,37 @@ export function useTableScrollHeight<T extends HTMLElement>( options: Options = 
             }
             lastErrorRef.current = error
 
-            setScrollY(( previous ) => {
-                // รอบแรกยังไม่มีค่าเดิม → ใช้ความสูงปัจจุบันของกล่องที่จะถูกจำกัดเป็นฐาน
-                const body = wrapper.querySelector<HTMLElement>(".ant-table-body")
-                    ?? wrapper.querySelector<HTMLElement>(".ant-table-content")
-                const base = previous ?? ( body?.getBoundingClientRect().height ?? 0 )
+            // ใช้ความสูงที่วัดได้จริงเสมอ: หน้าสุดท้าย/ผลค้นหาที่มีแถวน้อยไม่ได้เต็ม max-height
+            // ถ้าบวก slack เข้าค่าเดิม จะสะสมพื้นที่ว่างจนตารางล้นเมื่อเพิ่ม pageSize
+            setScrollY(Math.max( min, Math.round( bodyHeight + slack ) ))
+        }
 
-                return Math.max( min, Math.round( base + slack ) )
+        const scheduleMeasure = (): void => {
+            if ( frame !== undefined ) cancelAnimationFrame(frame)
+            frame = requestAnimationFrame(() => {
+                frame = undefined
+                measure()
             })
         }
 
-        measure()
+        scheduleMeasure()
 
-        const resizeObserver = new ResizeObserver(measure)
+        const resizeObserver = new ResizeObserver(scheduleMeasure)
         resizeObserver.observe( scrollParent )
         resizeObserver.observe( wrapper )
 
-        window.addEventListener("resize", measure)
+        // ข้อมูลโหลดเสร็จอาจไม่เปลี่ยนขนาด wrapper เมื่อมี scroll.y อยู่แล้ว
+        const mutationObserver = new MutationObserver(scheduleMeasure)
+        mutationObserver.observe( wrapper, { childList: true, subtree: true, characterData: true, attributes: true } )
+        window.addEventListener("resize", scheduleMeasure)
 
         return () => {
+            if ( frame !== undefined ) cancelAnimationFrame(frame)
             resizeObserver.disconnect()
-            window.removeEventListener("resize", measure)
+            mutationObserver.disconnect()
+            window.removeEventListener("resize", scheduleMeasure)
         }
     }, [ disabled, min ])
 
-    return { wrapperRef, scrollY }
+    return { wrapperRef, scrollY: disabled ? undefined : scrollY }
 }
