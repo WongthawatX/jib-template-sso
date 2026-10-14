@@ -25,6 +25,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 5. **แก้เฉพาะสิ่งที่โจทย์ต้องการ** อย่าเพิ่ม feature/abstraction เกินความจำเป็น
 6. **ตรวจงานก่อนบอกว่าเสร็จ** ต้องผ่าน type-check + lint + build (ดูข้อ 14)
 7. ห้ามสร้างไฟล์ document (README/*.md) เว้นแต่ผู้ใช้สั่ง
+8. กฎการแก้ `utils/messages.ts` อยู่ใน `.kiro/steering/message-catalog.md`
 
 ---
 
