@@ -34,7 +34,8 @@ export default function Login() {
                     return
                 }
             }
-            await beginSsoAuthorization(returnTo)
+            // ออกจากระบบ/เปลี่ยนรหัสผ่านแล้วต้องเห็นหน้า login ของ SSO จริง ไม่ใช่ถูก session เดิมพาเข้าระบบเงียบ ๆ
+            await beginSsoAuthorization(returnTo, isLoggedOut || isPasswordChanged)
         } catch ( error ) {
             setErrorMessage(error instanceof Error ? error.message : AUTH_MESSAGES.SSO_CONNECT_FAILED)
             setIsLoading(false)

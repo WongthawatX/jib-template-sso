@@ -49,7 +49,13 @@ export function getSafeReturnTo(returnTo: string): string {
     return `${url.pathname}${url.search}${url.hash}`
 }
 
-export async function beginSsoAuthorization(returnTo: string): Promise<void> {
+/**
+ * พา browser ไปหน้า authorize ของ SSO
+ * forceLogin: ขอให้ SSO แสดงหน้า login ใหม่แม้ยังมี session อยู่ (ใช้หลังผู้ใช้กดออกจากระบบ/เปลี่ยนรหัสผ่าน)
+ * ถ้าไม่ส่ง ผู้ใช้ที่ session ที่ SSO ยังไม่หมดอายุจะถูกพากลับเข้าระบบทันทีโดยไม่เห็นหน้า login
+ * `prompt=login` เป็นพารามิเตอร์มาตรฐาน OIDC — jib-sso รองรับที่ชั้น frontend (เลิกส่ง session cookie ให้ backend)
+ */
+export async function beginSsoAuthorization(returnTo: string, forceLogin: boolean = false): Promise<void> {
     if ( !window.isSecureContext || !window.crypto?.subtle ) {
         throw new Error(AUTH_MESSAGES.INSECURE_ORIGIN)
     }
@@ -84,6 +90,7 @@ export async function beginSsoAuthorization(returnTo: string): Promise<void> {
         code_challenge: codeChallenge,
         code_challenge_method: "S256",
         app_name: env.SSO_APP_NAME,
+        ...( forceLogin ? { prompt: "login" } : {} ),
     }).toString()
 
     saveAuthorization(authorization)
