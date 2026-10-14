@@ -10,6 +10,7 @@ import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { beginSsoAuthorization, getSafeReturnTo } from "@/lib/sso"
 import { useAppStore } from "@/store/useAppStore"
+import { AUTH_MESSAGES } from "@/utils/messages"
 
 export default function Login() {
     const router = useRouter()
@@ -35,7 +36,7 @@ export default function Login() {
             }
             await beginSsoAuthorization(returnTo)
         } catch ( error ) {
-            setErrorMessage(error instanceof Error ? error.message : "ไม่สามารถเชื่อมต่อ JIB SSO ได้ กรุณาลองอีกครั้ง")
+            setErrorMessage(error instanceof Error ? error.message : AUTH_MESSAGES.SSO_CONNECT_FAILED)
             setIsLoading(false)
         }
     }, [ isLoggedOut, isPasswordChanged, returnTo, router ])
@@ -55,19 +56,15 @@ export default function Login() {
                     </div>
                     <CardTitle>
                         { errorMessage
-                            ? "เข้าสู่ระบบไม่สำเร็จ"
+                            ? AUTH_MESSAGES.LOGIN_FAILED_TITLE
                             : isPasswordChanged
-                                ? "เปลี่ยนรหัสผ่านสำเร็จ"
-                                : hasLogoutError
-                                    ? "ออกจากระบบแล้ว"
-                                    : "กำลังไปยัง JIB SSO" }
+                                ? AUTH_MESSAGES.PASSWORD_CHANGED_TITLE
+                                : hasLogoutError ? AUTH_MESSAGES.LOGOUT_DONE_TITLE : AUTH_MESSAGES.LOGIN_REDIRECT_TITLE }
                     </CardTitle>
                     <CardDescription aria-live="polite">
                         { errorMessage || ( hasLogoutError
-                            ? "ล้างเซสชันในแอปแล้ว แต่ไม่สามารถออกจากระบบ SSO กลางได้ กรุณาลองอีกครั้งภายหลัง"
-                            : isPasswordChanged
-                            ? "กรุณาเข้าสู่ระบบอีกครั้งด้วยรหัสผ่านใหม่"
-                            : "เข้าสู่ระบบด้วยบัญชีพนักงานผ่าน JIB SSO" ) }
+                            ? AUTH_MESSAGES.LOGOUT_SSO_FAILED
+                            : isPasswordChanged ? AUTH_MESSAGES.PASSWORD_CHANGED_HINT : AUTH_MESSAGES.LOGIN_HINT ) }
                     </CardDescription>
                 </CardHeader>
                 { (errorMessage || hasLogoutError || isPasswordChanged) && (

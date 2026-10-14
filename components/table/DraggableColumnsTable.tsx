@@ -223,7 +223,8 @@ export default function DraggableColumnsTable<T extends object>({ columns: baseC
 
     return (
         <div
-            className="group/table relative flex min-w-0 flex-col"
+            // Antd ไม่แสดง pagination เมื่อตารางว่าง จึงต้องกันพื้นที่สำหรับแถบปรับแต่งไว้เอง
+            className="relative [&:not(:has(.ant-table-pagination))]:pb-10"
             // CSS var ที่ .table-antd-overrides ใน app/antd-overrides.css เอาไปใช้
             data-table-striped={prefs.striped}
             data-table-divider={prefs.columnDivider}
@@ -235,7 +236,18 @@ export default function DraggableColumnsTable<T extends object>({ columns: baseC
                 "--table-border-width": `${prefs.borderWidth}px`,
             } as React.CSSProperties}
         >
-
+            {/* วางคู่กับ pagination มุมซ้ายล่าง — จุดเดียวกับปุ่มรีเซ็ตเดิม */}
+            <div className="absolute bottom-2 left-0 z-20 flex items-center gap-1.5">
+                <TableColumnSettings
+                    columns={settingsColumns}
+                    prefs={prefs}
+                    onChange={update}
+                    onReset={reset}
+                />
+                { isCustomized && (
+                    <span className="text-[11px] text-muted-foreground"> ปรับแต่งอยู่ </span>
+                )}
+            </div>
             <DndContext
                 sensors={sensors}
                 modifiers={[ restrictToHorizontalAxis ]}
@@ -259,7 +271,7 @@ export default function DraggableColumnsTable<T extends object>({ columns: baseC
                                 x: prefs.widthMode === "screen" ? "100%" : ( tableProps.scroll?.x ?? "max-content" ),
                             }}
                             // merge ไว้ ไม่งั้น className ที่ caller ส่งผ่าน tableProps จะถูกทับหาย
-                            className={cn("table-antd-overrides", tableProps.className, "[&_.ant-pagination]:min-h-6 md:[&_.ant-pagination]:pl-60!")}
+                            className={cn("table-antd-overrides", tableProps.className)}
                         />
                     </DragIndexContext.Provider>
                 </SortableContext>
@@ -276,10 +288,6 @@ export default function DraggableColumnsTable<T extends object>({ columns: baseC
                     ) : null }
                 </DragOverlay>
             </DndContext>
-            <div className="mt-2 flex min-h-6 items-center gap-1.5 md:group-has-[.ant-spin-container>.ant-pagination:last-child]/table:absolute md:group-has-[.ant-spin-container>.ant-pagination:last-child]/table:bottom-2 md:group-has-[.ant-spin-container>.ant-pagination:last-child]/table:left-0 md:group-has-[.ant-spin-container>.ant-pagination:last-child]/table:mt-0">
-                <TableColumnSettings columns={settingsColumns} prefs={prefs} onChange={update} onReset={reset} />
-                { isCustomized && <span className="text-[11px] text-muted-foreground"> ปรับแต่งอยู่ </span> }
-            </div>
         </div>
     )
 }

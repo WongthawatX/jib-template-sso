@@ -1,5 +1,6 @@
 import { APP_BASE_PATH, env } from "@/config/env"
 import { sessionStorageStore } from "@/lib/storage"
+import { AUTH_MESSAGES } from "@/utils/messages"
 
 const AUTHORIZATION_STORAGE_KEY = "ssoAuthorization"
 const AUTHORIZATION_TTL_MS = 10 * 60 * 1000
@@ -50,7 +51,7 @@ export function getSafeReturnTo(returnTo: string): string {
 
 export async function beginSsoAuthorization(returnTo: string): Promise<void> {
     if ( !window.isSecureContext || !window.crypto?.subtle ) {
-        throw new Error("กรุณาเปิดผ่าน localhost หรือ HTTPS เพื่อเข้าสู่ระบบอย่างปลอดภัย")
+        throw new Error(AUTH_MESSAGES.INSECURE_ORIGIN)
     }
     const state = createRandomValue(32)
     const nonce = createRandomValue(32)
@@ -93,7 +94,7 @@ function saveAuthorization(authorization: SsoAuthorization): void {
     const value = JSON.stringify(authorization)
     sessionStorageStore.setItem(AUTHORIZATION_STORAGE_KEY, value)
     if ( sessionStorageStore.getItem(AUTHORIZATION_STORAGE_KEY) !== value ) {
-        throw new Error("กรุณาอนุญาต session storage ในเบราว์เซอร์ แล้วลองอีกครั้ง")
+        throw new Error(AUTH_MESSAGES.SESSION_STORAGE_BLOCKED)
     }
 }
 
@@ -145,12 +146,12 @@ export function readSsoCallback(params: Pick<URLSearchParams, "get">): { authori
     const code = params.get("code")
     const error = params.get("error")
     try {
-        if ( !authorization ) throw new Error("ข้อมูลการเข้าสู่ระบบหมดอายุ กรุณาเริ่มใหม่")
-        if ( !state || state !== authorization.state ) throw new Error("ตรวจสอบ state ไม่สำเร็จ กรุณาเริ่มใหม่")
+        if ( !authorization ) throw new Error(AUTH_MESSAGES.AUTHORIZATION_EXPIRED)
+        if ( !state || state !== authorization.state ) throw new Error(AUTH_MESSAGES.STATE_MISMATCH)
         if ( error ) {
-            throw new Error(error === "access_denied" ? "ยกเลิกการเข้าสู่ระบบแล้ว" : "ระบบ SSO ไม่สามารถเข้าสู่ระบบได้ กรุณาลองอีกครั้ง")
+            throw new Error(error === "access_denied" ? AUTH_MESSAGES.LOGIN_CANCELED : AUTH_MESSAGES.SSO_PROVIDER_FAILED)
         }
-        if ( !code ) throw new Error("ไม่พบ Authorization Code จากระบบ SSO")
+        if ( !code ) throw new Error(AUTH_MESSAGES.AUTHORIZATION_CODE_MISSING)
         return { authorization, code }
     } catch ( error ) {
         clearSsoAuthorization()
