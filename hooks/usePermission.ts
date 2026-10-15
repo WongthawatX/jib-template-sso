@@ -10,7 +10,7 @@ import { hasPermission } from "@/utils/permissions"
  * ผู้ใช้ที่มีสิทธิ์ "*" ได้ทุก action เสมอ (จัดการใน hasPermission)
  *
  * @example
- * const { canCreate, canEdit } = usePermission(RESOURCE.PJOB)
+ * const { canCreate, canEdit } = usePermission("store-products")
  * <Button disabled={!canCreate}>เพิ่ม</Button>
  */
 export function usePermission( resource: string ) {

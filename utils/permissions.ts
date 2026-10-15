@@ -29,78 +29,23 @@ export const PERMISSION_ACTIONS: PermissionActionConfig[] = [
     { key: "cancel",  label: "ยกเลิก",   icon: Ban },
 ]
 
-/**
- * resource key = segment ของ route (kebab-case) ให้ตรงกับที่ backend ส่งใน permissions
- * อ้างชื่อแทน string ดิบ (เช่น RESOURCE.STORE_PRODUCTS แทน "pjob")
- */
-export const RESOURCE = {
-    DASHBOARD: "dashboard",
-    TABLE_DEMO: "table-demo",
-    STORE_DASHBOARD: "store-dashboard",
-    STORE_ORGANIZE: "store-organize",
-    STORE_PRODUCTS: "store-products",
-    STORE_UPLOAD_360: "store-upload-360",
-    STORE_MARKETPLACE_OPTION: "store-marketplace-option",
-    STORE_COMMERCIAL_PRODUCTS: "store-commercial-products",
-    STORE_COM_SET: "store-com-set",
-    STORE_VARIATIONS: "store-variations",
-    STORE_SPEC_TEMPLATES: "store-spec-templates",
-    STORE_MAPPING: "store-mapping",
-    STORE_CATEGORY: "store-category",
-    STORE_BRANDS: "store-brands",
-    STORE_SUPPLIERS: "store-suppliers",
-    STORE_FILTERS: "store-filters",
-    STORE_TAGS: "store-tags",
-    STORE_WARRANTIES: "store-warranties",
-    STORE_SERVICES: "store-services",
-    STORE_ORDERS: "store-orders",
-    STORE_ORDERS_BY_ORDER: "store-orders-by-order",
-    USERS: "users",
-    USERS_PERMISSIONS: "users-permissions",
-    REPORTS_SALES: "reports-sales",
-    REPORTS_PRODUCTS: "reports-products",
-    SETTINGS_GENERAL: "settings-general",
-} as const
+/** สร้าง label สำรองจาก resource key เมื่อไม่มีชื่อเมนู */
+const formatResourceLabel = ( resource: string ): string =>
+    resource.split("-").map(( part ) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
 
-export type ResourceKey = ( typeof RESOURCE )[keyof typeof RESOURCE]
+const canonicalResource = ( resource: string ): string => resource.toLowerCase()
 
-/** ชื่อ resource สำหรับแสดงผล — ปรับ/เพิ่มได้ที่นี่ที่เดียว */
-export const RESOURCE_LABELS: Record<string, string> = {
-    [RESOURCE.DASHBOARD]: "Dashboard",
-    [RESOURCE.TABLE_DEMO]: "ทดลอง Table",
-    [RESOURCE.STORE_DASHBOARD]: "Dashboard",
-    [RESOURCE.STORE_ORGANIZE]: "จัดระเบียบสินค้า",
-    [RESOURCE.STORE_PRODUCTS]: "Products",
-    [RESOURCE.STORE_UPLOAD_360]: "Upload 360°",
-    [RESOURCE.STORE_MARKETPLACE_OPTION]: "Marketplace Option",
-    [RESOURCE.STORE_COMMERCIAL_PRODUCTS]: "Commercial Products",
-    [RESOURCE.STORE_COM_SET]: "Com Set",
-    [RESOURCE.STORE_VARIATIONS]: "Variations",
-    [RESOURCE.STORE_SPEC_TEMPLATES]: "Spec Templates",
-    [RESOURCE.STORE_MAPPING]: "Mapping",
-    [RESOURCE.STORE_CATEGORY]: "Category",
-    [RESOURCE.STORE_BRANDS]: "Brands",
-    [RESOURCE.STORE_SUPPLIERS]: "Suppliers",
-    [RESOURCE.STORE_FILTERS]: "Filters",
-    [RESOURCE.STORE_TAGS]: "Tags",
-    [RESOURCE.STORE_WARRANTIES]: "Warranties",
-    [RESOURCE.STORE_SERVICES]: "Services",
-    [RESOURCE.STORE_ORDERS]: "รายการคำสั่งซื้อ",
-    [RESOURCE.STORE_ORDERS_BY_ORDER]: "รายการคำสั่งซื้อ By Order",
-    [RESOURCE.USERS]: "Users",
-    [RESOURCE.USERS_PERMISSIONS]: "Permissions",
-    [RESOURCE.REPORTS_SALES]: "รายงานยอดขาย",
-    [RESOURCE.REPORTS_PRODUCTS]: "รายงานสินค้า",
-    [RESOURCE.SETTINGS_GENERAL]: "ตั้งค่าทั่วไป",
-}
-
-/** คืนชื่อ resource สำหรับแสดงผล: RESOURCE_LABELS → fallback เป็น key ดิบ */
-export const getResourceLabel = ( resource: string ): string =>
-    RESOURCE_LABELS[resource] ?? resource
-
-/** รับเฉพาะสิทธิ์แบบ string ตามสัญญา SSO ของ Procon */
+/** รับสิทธิ์แบบ string ตามสัญญา SSO และ normalize resource ให้อยู่ในรูปตัวพิมพ์เล็ก */
 export const normalizePermissions = ( value: unknown ): Permission[] =>
-    Array.isArray(value) ? value.filter(( permission ): permission is string => typeof permission === "string") : []
+    Array.isArray(value)
+        ? Array.from(new Set(value.filter(( permission ): permission is string => typeof permission === "string").map(( permission ) => {
+            if ( permission === WILDCARD ) return permission
+            const separator = permission.lastIndexOf(".")
+            if ( separator < 1 ) return permission
+            const resource = permission.slice(0, separator)
+            return `${canonicalResource(resource)}${permission.slice(separator)}`
+        })))
+        : []
 
 const WILDCARD = "*"
 
@@ -122,7 +67,7 @@ export const hasAllPermissions = ( permissions: Permission[] ): boolean =>
 /**
  * เช็คว่าผู้ใช้มีสิทธิ์ทำ action กับ resource นั้นหรือไม่
  * รองรับ: "*" (ทุกสิทธิ์), "<resource>.*" (ทุก action ของ resource), "<resource>.<action>" (ตรงตัว)
- * @example if ( hasPermission(permissions, RESOURCE.PJOB, "create") ) { ...show create button... }
+ * @example if ( hasPermission(permissions, "store-products", "create") ) { ...show create button... }
  */
 export const hasPermission = ( permissions: Permission[], resource: string, action: PermissionAction ): boolean =>
     permissions.includes( WILDCARD ) ||
@@ -134,18 +79,22 @@ export type PermissionRow = { resource: string; label: string } & Record<Permiss
 
 /**
  * แปลง permissions (string[]) เป็นตาราง resource × action สำหรับแสดงผล
- * รวม resource ที่แอปรู้จัก (RESOURCE_LABELS) กับที่มาใน permissions จริง เพื่อให้ครบ
+ * สร้างแถวจาก resource ที่มีสิทธิ์อยู่จริง โดยไม่ต้องลงทะเบียน resource ไว้ล่วงหน้า
  */
-export const buildPermissionRows = ( permissions: Permission[] ): PermissionRow[] => {
-    const fromPerms = permissions
+export const buildPermissionRows = (
+    permissions: Permission[],
+    labels: Record<string, string> = {},
+): PermissionRow[] => {
+    const normalizedPermissions = normalizePermissions(permissions)
+    const fromPerms = normalizedPermissions
         .filter(( p ) => p !== WILDCARD && p.includes( "." ) )
         .map(( p ) => p.slice( 0, p.lastIndexOf( "." ) ) )
-    const resources = Array.from( new Set([ ...Object.keys( RESOURCE_LABELS ), ...fromPerms ]) )
+    const resources = Array.from( new Set(fromPerms) )
 
     return resources.map(( resource ) => {
-        const row = { resource, label: getResourceLabel( resource ) } as PermissionRow
+        const row = { resource, label: labels[resource] ?? formatResourceLabel( resource ) } as PermissionRow
         PERMISSION_ACTIONS.forEach(( action ) => {
-            row[action.key] = hasPermission( permissions, resource, action.key )
+            row[action.key] = hasPermission( normalizedPermissions, resource, action.key )
         })
         return row
     })
