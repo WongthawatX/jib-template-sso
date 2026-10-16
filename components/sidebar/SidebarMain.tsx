@@ -25,6 +25,7 @@ export function SidebarMain({ activeSection, onSelect }: Props) {
                                     <SidebarMenuButton
                                         onClick={() => onSelect(section)}
                                         isActive={activeSection?.title === section.title}
+                                        tooltip={{ children: section.title, sideOffset: 14 }}
                                         className="relative cursor-pointer justify-center rounded-md px-0 text-sidebar-foreground/65 transition-[background-color,color,box-shadow] duration-200 hover:bg-sidebar-accent/55 hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground data-active:after:absolute data-active:after:top-1/2 data-active:after:right-0 data-active:after:h-5.5 data-active:after:w-1 data-active:after:-translate-y-1/2 data-active:after:rounded-full data-active:after:bg-sidebar-primary data-active:ring-1"
                                     >
                                         <Icon />
