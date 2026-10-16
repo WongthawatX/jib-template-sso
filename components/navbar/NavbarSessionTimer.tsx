@@ -129,7 +129,19 @@ export default function NavbarSessionTimer() {
                     <Timer className="relative size-4" aria-hidden="true" />
                 </div>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="end" sideOffset={12}> { tooltipLabel } </TooltipContent>
+            <TooltipContent
+                side="bottom"
+                align="end"
+                sideOffset={12}
+                className={hasExpiration && !isExpired ? "w-72 max-w-[calc(100vw-2rem)] whitespace-normal" : undefined}
+            >
+                { hasExpiration && !isExpired ? (
+                    <span className="flex flex-col gap-0.5 py-0.5">
+                        <span className="font-semibold">เหลือเวลาใช้งาน { formatDuration( remainingSeconds ) }</span>
+                        <span className="text-background/75">หมดอายุ { formatExpirationTime( expirationTime ) }</span>
+                    </span>
+                ) : tooltipLabel }
+            </TooltipContent>
         </Tooltip>
     )
 }
