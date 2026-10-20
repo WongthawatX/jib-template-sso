@@ -71,7 +71,7 @@ npm run dev
 ## คำสั่งที่ใช้บ่อย
 
 ```bash
-npm run dev      # dev server (port 5000, Turbopack)
+npm run dev      # dev server (port 4000, Turbopack)
 npm run build    # production build (next build)
 npm run start    # รัน production build
 npm run lint     # ESLint (eslint-config-next, flat config)
