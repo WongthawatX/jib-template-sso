@@ -16,6 +16,7 @@ export default function SessionGuard({ children }: { children: ReactNode }) {
     const pathname = usePathname()
     const accessToken = useAppStore(( state ) => state.accessToken)
     const isInitialized = useAppStore(( state ) => state.isInitialized)
+    const hasLoggedOut = useAppStore(( state ) => state.hasLoggedOut)
     const expiresAt = useAppStore(( state ) => state.expiresAt)
     const initializeSession = useAppStore(( state ) => state.initializeSession)
     const logout = useAppStore(( state ) => state.logout)
@@ -25,9 +26,9 @@ export default function SessionGuard({ children }: { children: ReactNode }) {
     useEffect(() => {
         if ( isInitialized && !accessToken ) {
             const returnTo = `${pathname}${window.location.search}${window.location.hash}`
-            router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`)
+            router.replace(hasLoggedOut ? "/login?loggedOut=1" : `/login?returnTo=${encodeURIComponent(returnTo)}`)
         }
-    }, [ accessToken, isInitialized, pathname, router ])
+    }, [ accessToken, hasLoggedOut, isInitialized, pathname, router ])
 
     useEffect(() => {
         if ( !accessToken || expiresAt === null ) return

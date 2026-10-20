@@ -6,6 +6,7 @@ import { jwtDecode } from "jwt-decode"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/useAppStore"
+import { AUTH_MESSAGES } from "@/utils/messages"
 
 type TokenPayload = {
     exp?: number;
@@ -59,7 +60,7 @@ const formatDuration = ( seconds: number | null ): string => {
 }
 
 const formatExpirationTime = ( expirationTime: number | null ): string => {
-    if ( expirationTime === null ) return "ไม่พบเวลาหมดอายุใน Token"
+    if ( expirationTime === null ) return AUTH_MESSAGES.TOKEN_EXPIRATION_MISSING
 
     return new Date( expirationTime ).toLocaleString("th-TH", {
         day: "numeric",
@@ -90,7 +91,11 @@ export default function NavbarSessionTimer() {
     const hasExpiration = expirationTime !== null
     const isExpired = remainingSeconds === 0
     const isExpiringSoon = remainingSeconds !== null && remainingSeconds > 0 && remainingSeconds <= 300
-    const tooltipLabel = !hasExpiration ? "ไม่พบเวลาหมดอายุใน Token" : isExpired ? "Session หมดอายุแล้ว" : `Session เหลือ ${formatDuration( remainingSeconds )} · หมดอายุ ${formatExpirationTime( expirationTime )}`
+    const tooltipLabel = !hasExpiration
+        ? AUTH_MESSAGES.TOKEN_EXPIRATION_MISSING
+        : isExpired
+            ? AUTH_MESSAGES.SESSION_EXPIRED_SHORT
+            : `Session เหลือ ${formatDuration( remainingSeconds )} · หมดอายุ ${formatExpirationTime( expirationTime )}`
 
     return (
         <Tooltip>
@@ -124,7 +129,19 @@ export default function NavbarSessionTimer() {
                     <Timer className="relative size-4" aria-hidden="true" />
                 </div>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="end" sideOffset={12}> { tooltipLabel } </TooltipContent>
+            <TooltipContent
+                side="bottom"
+                align="end"
+                sideOffset={12}
+                className={hasExpiration && !isExpired ? "w-72 max-w-[calc(100vw-2rem)] whitespace-normal" : undefined}
+            >
+                { hasExpiration && !isExpired ? (
+                    <span className="flex flex-col gap-0.5 py-0.5">
+                        <span className="font-semibold">เหลือเวลาใช้งาน { formatDuration( remainingSeconds ) }</span>
+                        <span className="text-background/75">หมดอายุ { formatExpirationTime( expirationTime ) }</span>
+                    </span>
+                ) : tooltipLabel }
+            </TooltipContent>
         </Tooltip>
     )
 }

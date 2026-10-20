@@ -3,7 +3,9 @@ import { create } from "zustand"
 
 import { DEV_AUTH_BYPASS } from "@/config/env"
 import { getStoredAccessToken, sessionStorageStore, storage } from "@/lib/storage"
-import { getSsoUserInfo } from "@/services/apiSSOService"
+import { getSsoLogoutState, getSsoUserInfo } from "@/services/apiSSOService"
+
+import { normalizePermissions } from "@/utils/permissions"
 
 import type { SsoUserInfo } from "@/services/apiSSOService"
 import type { Permission } from "@/utils/permissions"
@@ -14,6 +16,7 @@ type AppState = {
     expiresAt: number | null;
     permissions: Permission[];
     isInitialized: boolean;
+    hasLoggedOut: boolean;
     setSsoSession: ( token: string, user: SsoUserInfo, refreshToken?: string, expiresIn?: number ) => void;
     initializeSession: () => Promise<void>;
     logout: () => void;
@@ -22,7 +25,7 @@ type AppState = {
 let initialization: Promise<void> | null = null
 let sessionVersion = 0
 
-// dev bypass: ผู้ใช้ปลอม role admin (เห็นทุกเมนู) + สิทธิ์ครบทุก action ทุกเมนู
+// dev bypass: สิทธิ์จำลอง "*" แบบ Procon; production รับสิทธิ์จาก SSO เท่านั้น
 const DEV_MOCK_TOKEN = "dev-mock-access-token"
 const DEV_SESSION_TTL_SECONDS = 8 * 60 * 60
 const DEV_MOCK_USER: SsoUserInfo = {
@@ -36,15 +39,7 @@ const DEV_MOCK_USER: SsoUserInfo = {
     branch: "HQ",
     system_role: "admin",
     roles: [ "admin" ],
-    permissions: [ 1, 2, 3, 4 ].map(( menu_id ) => ({
-        menu_id,
-        views: 1,
-        creates: 1,
-        edits: 1,
-        deletes: 1,
-        approves: 1,
-        printed: 1,
-    })),
+    permissions: [ "*" ],
 }
 
 const getExpiration = ( token: string, expiresIn?: number ): number | null => {
@@ -65,11 +60,12 @@ export const useAppStore = create<AppState>(( set, get ) => ({
     expiresAt: null,
     permissions: [],
     isInitialized: false,
+    hasLoggedOut: false,
 
     setSsoSession: ( token, user, refreshToken, expiresIn ) => {
         const expiresAt = getExpiration(token, expiresIn)
         if ( expiresAt !== null && expiresAt <= Date.now() ) throw new Error("SSO session expired")
-        const permissions = user.permissions ?? []
+        const permissions = normalizePermissions(user.permissions)
         for ( const key of [ "accessToken", "userData", "permissions", "refreshToken", "expiresAt" ] ) {
             storage.removeItem(key)
         }
@@ -80,7 +76,7 @@ export const useAppStore = create<AppState>(( set, get ) => ({
         if ( refreshToken ) sessionStorageStore.setItem("refreshToken", refreshToken)
         else sessionStorageStore.removeItem("refreshToken")
         sessionVersion += 1
-        set({ accessToken: token, userDetail: user, permissions, expiresAt, isInitialized: true })
+        set({ accessToken: token, userDetail: user, permissions, expiresAt, isInitialized: true, hasLoggedOut: false })
     },
 
     initializeSession: async () => {
@@ -104,7 +100,7 @@ export const useAppStore = create<AppState>(( set, get ) => ({
                 if ( expiresAt !== null && expiresAt <= Date.now() ) throw new Error("SSO session expired")
                 // Validate with SSO; decoding a JWT does not verify its signature.
                 const user = await getSsoUserInfo(token)
-                if ( version !== sessionVersion ) return
+                if ( version !== sessionVersion || getStoredAccessToken() !== token || getSsoLogoutState().isLoggingOut ) return
                 get().setSsoSession(
                     token, user, sessionStorageStore.getItem("refreshToken") ?? undefined,
                     expiresAt === null ? undefined : (expiresAt - Date.now()) / 1000,
@@ -120,6 +116,6 @@ export const useAppStore = create<AppState>(( set, get ) => ({
         sessionVersion += 1
         storage.clear()
         sessionStorageStore.clear()
-        set({ userDetail: null, accessToken: "", permissions: [], expiresAt: null, isInitialized: true })
+        set({ userDetail: null, accessToken: "", permissions: [], expiresAt: null, isInitialized: true, hasLoggedOut: true })
     },
 }))

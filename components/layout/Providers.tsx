@@ -10,7 +10,7 @@ import type { ReactNode } from "react"
 export default function Providers({ children }: { children: ReactNode }) {
     return (
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey={`${STORAGE_NS}:theme`}>
-            <TooltipProvider>{ children }</TooltipProvider>
+            <TooltipProvider delay={300}>{ children }</TooltipProvider>
         </ThemeProvider>
     )
 }

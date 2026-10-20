@@ -1,28 +1,17 @@
-import { sessionStorageStore, storage } from "@/lib/storage";
-import { Eye, Plus, Pencil, Trash2, CheckCircle2, Printer } from "lucide-react"
+import { Eye, Plus, Pencil, CheckCircle2, Printer, Ban } from "lucide-react"
+import { sessionStorageStore, storage } from "@/lib/storage"
 
 import type { ComponentType } from "react"
 
 /**
- * สิทธิ์การเข้าถึง (CRUD) ต่อ 1 เมนู
- * ค่ามาจาก backend เป็น 0/1 (การกำหนดสิทธิ์ทำจากโปรแกรมอื่น ฝั่งนี้อ่านอย่างเดียว)
- * backend อาจแนบ menu_name มาด้วย (optional) — ถ้ามีจะใช้เป็น label ก่อน
+ * สิทธิ์เป็น string รูปแบบ "<resource>.<action>" เช่น "pjob.view"
+ * ค่ามาจาก backend (JWT / SSO /userinfo) — ฝั่งนี้อ่านอย่างเดียว
+ * "*" = ได้ทุกสิทธิ์ (super user)
  */
-export type MenuPermission = {
-    menu_id: number;
-    menu_name?: string;
-    views: number;
-    creates: number;
-    edits: number;
-    deletes: number;
-    approves: number;
-    printed: number;
-}
+export type Permission = string
 
-export type Permission = string | MenuPermission
-
-/** ชื่อ action (key ตรงกับ field ใน Permission) */
-export type PermissionAction = "views" | "creates" | "edits" | "deletes" | "approves" | "printed"
+/** ชื่อ action (segment หลังของ permission string) */
+export type PermissionAction = "view" | "create" | "edit" | "approve" | "print" | "cancel"
 
 type PermissionActionConfig = {
     key: PermissionAction;
@@ -30,73 +19,83 @@ type PermissionActionConfig = {
     icon: ComponentType<{ className?: string }>;
 }
 
-/** คอลัมน์ CRUD ที่แสดงในตาราง + ใช้ map key → label (เรียงตามลำดับที่ต้องการโชว์) */
+/** คอลัมน์สิทธิ์ที่แสดงในตาราง + ใช้ map key → label (เรียงตามลำดับที่ต้องการโชว์) */
 export const PERMISSION_ACTIONS: PermissionActionConfig[] = [
-    { key: "views",    label: "ดู",      icon: Eye },
-    { key: "creates",  label: "เพิ่ม",    icon: Plus },
-    { key: "edits",    label: "แก้ไข",    icon: Pencil },
-    { key: "deletes",  label: "ลบ",      icon: Trash2 },
-    { key: "approves", label: "อนุมัติ",  icon: CheckCircle2 },
-    { key: "printed",  label: "พิมพ์",    icon: Printer },
+    { key: "view",    label: "ดู",      icon: Eye },
+    { key: "create",  label: "เพิ่ม",    icon: Plus },
+    { key: "edit",    label: "แก้ไข",    icon: Pencil },
+    { key: "approve", label: "อนุมัติ",  icon: CheckCircle2 },
+    { key: "print",   label: "พิมพ์",    icon: Printer },
+    { key: "cancel",  label: "ยกเลิก",   icon: Ban },
 ]
 
-/**
- * menu_id แบบมีชื่อ — ให้ component/หน้า อ้างชื่อแทนเลขดิบ (เช่น MENU.PJOB แทน 1)
- * ⚠️ ค่าเลขต้องตรงกับที่ระบบจัดการสิทธิ์ (อีกโปรแกรม) กำหนด — ยืนยัน mapping ก่อนใช้ gate จริง
- */
-export const MENU = {
-    PJOB: 1,
-    CJOB: 2,
-    ATM: 3,
-    RETURN_PRODUCT: 4,
-} as const
+/** สร้าง label สำรองจาก resource key เมื่อไม่มีชื่อเมนู */
+const formatResourceLabel = ( resource: string ): string =>
+    resource.split("-").map(( part ) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
 
-export type MenuId = ( typeof MENU )[keyof typeof MENU]
+const canonicalResource = ( resource: string ): string => resource.toLowerCase()
 
-/**
- * ชื่อเมนูตาม menu_id — การกำหนดสิทธิ์ทำจากโปรแกรมอื่น ฝั่งนี้ map เพื่อแสดงผลเท่านั้น
- * ปรับ/เพิ่มได้ที่นี่ที่เดียว ถ้า backend ส่ง menu_name มาจะใช้ menu_name ก่อน map นี้
- */
-export const MENU_LABELS: Record<number, string> = {
-    [MENU.PJOB]: "P JOB",
-    [MENU.CJOB]: "C JOB",
-    [MENU.ATM]: "ATM",
-    [MENU.RETURN_PRODUCT]: "คืนสินค้า",
-}
+/** รับสิทธิ์แบบ string ตามสัญญา SSO และ normalize resource ให้อยู่ในรูปตัวพิมพ์เล็ก */
+export const normalizePermissions = ( value: unknown ): Permission[] =>
+    Array.isArray(value)
+        ? Array.from(new Set(value.filter(( permission ): permission is string => typeof permission === "string").map(( permission ) => {
+            if ( permission === WILDCARD ) return permission
+            const separator = permission.lastIndexOf(".")
+            if ( separator < 1 ) return permission
+            const resource = permission.slice(0, separator)
+            return `${canonicalResource(resource)}${permission.slice(separator)}`
+        })))
+        : []
 
-/** คืนชื่อเมนูสำหรับแสดงผล: menu_name (จาก backend) → MENU_LABELS → fallback "เมนู #id" */
-export const getMenuLabel = ( permission: MenuPermission ): string => {
-    if ( permission.menu_name ) return permission.menu_name
-    return MENU_LABELS[permission.menu_id] ?? `เมนู #${permission.menu_id}`
-}
-
-/**
- * admin เห็นทุกเมนู/ทำได้ทุกอย่าง — ข้ามการเช็คสิทธิ์ทั้งหมด
- * เช็คสิทธิ์ตาม permissions เฉพาะ role อื่น (เช่น user) เท่านั้น
- */
-export const isAdminRole = ( role?: string ): boolean =>
-    String( role ?? "" ).toLowerCase() === "admin"
+const WILDCARD = "*"
 
 /** อ่าน permissions ที่เก็บไว้ตอน login จาก storage (ไม่ throw — คืน [] ถ้า parse ไม่ได้) */
 export const getStoredPermissions = (): Permission[] => {
     try {
         const raw = sessionStorageStore.getItem("permissions") ?? storage.getItem("permissions")
         const parsed = raw ? JSON.parse( raw ) : []
-        return Array.isArray( parsed ) ? parsed : []
+        return normalizePermissions(parsed)
     } catch {
         return []
     }
 }
 
-/**
- * เช็คว่าผู้ใช้มีสิทธิ์ทำ action กับเมนูนั้นหรือไม่ (เตรียมไว้ใช้ gate ปุ่ม/หน้าในอนาคต)
- * @example if ( hasPermission(permissions, 1, "creates") ) { ...show create button... }
- */
-export const hasPermission = ( permissions: Permission[], menuId: number, action: PermissionAction ): boolean => {
-    if ( permissions.includes("*") ) return true
+/** true ถ้ามี "*" (ได้ทุกสิทธิ์) */
+export const hasAllPermissions = ( permissions: Permission[] ): boolean =>
+    permissions.includes( WILDCARD )
 
-    const menu = permissions.find(( permission ): permission is MenuPermission =>
-        typeof permission !== "string" && permission.menu_id === menuId
-    )
-    return menu ? menu[action] === 1 : false
+/**
+ * เช็คว่าผู้ใช้มีสิทธิ์ทำ action กับ resource นั้นหรือไม่
+ * รองรับ: "*" (ทุกสิทธิ์), "<resource>.*" (ทุก action ของ resource), "<resource>.<action>" (ตรงตัว)
+ * @example if ( hasPermission(permissions, "store-products", "create") ) { ...show create button... }
+ */
+export const hasPermission = ( permissions: Permission[], resource: string, action: PermissionAction ): boolean =>
+    permissions.includes( WILDCARD ) ||
+    permissions.includes( `${resource}.${WILDCARD}` ) ||
+    permissions.includes( `${resource}.${action}` )
+
+/** 1 แถวของตารางสิทธิ์: resource + ธง boolean ต่อ action */
+export type PermissionRow = { resource: string; label: string } & Record<PermissionAction, boolean>
+
+/**
+ * แปลง permissions (string[]) เป็นตาราง resource × action สำหรับแสดงผล
+ * สร้างแถวจาก resource ที่มีสิทธิ์อยู่จริง โดยไม่ต้องลงทะเบียน resource ไว้ล่วงหน้า
+ */
+export const buildPermissionRows = (
+    permissions: Permission[],
+    labels: Record<string, string> = {},
+): PermissionRow[] => {
+    const normalizedPermissions = normalizePermissions(permissions)
+    const fromPerms = normalizedPermissions
+        .filter(( p ) => p !== WILDCARD && p.includes( "." ) )
+        .map(( p ) => p.slice( 0, p.lastIndexOf( "." ) ) )
+    const resources = Array.from( new Set(fromPerms) )
+
+    return resources.map(( resource ) => {
+        const row = { resource, label: labels[resource] ?? formatResourceLabel( resource ) } as PermissionRow
+        PERMISSION_ACTIONS.forEach(( action ) => {
+            row[action.key] = hasPermission( normalizedPermissions, resource, action.key )
+        })
+        return row
+    })
 }

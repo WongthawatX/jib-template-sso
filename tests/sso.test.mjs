@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { createRequire } from "node:module"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { existsSync, readFileSync } from "node:fs"
+import { dirname, resolve } from "node:path"
 import { runInNewContext } from "node:vm"
 import { webcrypto } from "node:crypto"
 import test from "node:test"
@@ -20,7 +20,7 @@ function memoryStorage() {
     }
 }
 
-function runtime({ api = "", environment = {}, fetcher = async () => { throw new Error("Unexpected API call") } } = {}) {
+function runtime({ api = "", environment = {}, modules = {}, fetcher = async () => { throw new Error("Unexpected API call") } } = {}) {
     const cache = new Map()
     const sessionStorage = memoryStorage()
     const localStorage = memoryStorage()
@@ -44,16 +44,17 @@ function runtime({ api = "", environment = {}, fetcher = async () => { throw new
         },
     }
     const load = ( name ) => {
-        const file = resolve(name.replace(/^@\//, "") + ".ts")
+        const base = resolve(name.replace(/^@\//, ""))
+        const file = existsSync(`${base}.ts`) ? `${base}.ts` : `${base}.tsx`
         if ( cache.has(file) ) return cache.get(file).exports
         const compiledModule = { exports: {} }
         cache.set(file, compiledModule)
         const source = ts.transpileModule(readFileSync(file, "utf8"), {
-            compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+            compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
         }).outputText
         runInNewContext(source, {
             ...globals, module: compiledModule, exports: compiledModule.exports,
-            require: ( id ) => id.startsWith("@/") ? load(id) : require(id),
+            require: ( id ) => modules[id] ?? (id.startsWith("@/") ? load(id) : id.startsWith(".") ? load(resolve(dirname(file), id)) : require(id)),
         }, { filename: file })
         return compiledModule.exports
     }
@@ -264,29 +265,269 @@ test("expired or rejected tokens clear the session", async () => {
 })
 
 
-test("central logout sends cookies without requiring a refresh token and omits expired JWTs", async () => {
+test("logout clears the frontend cookie and revokes the API refresh family with expired access", async () => {
     const jwt = exp => `eyJhbGciOiJub25lIn0.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.signature`
     for ( const token of [ "", "invalid", jwt(1), jwt(Math.floor(Date.now() / 1000) + 3600) ] ) {
-        let sent
-        const rt = runtime({ fetcher: async (url, options) => {
-            sent = { url, options }
+        const sent = []
+        const rt = runtime({ api: "https://sso.test/v1", fetcher: async (url, options) => {
+            sent.push({ url, options })
             return { ok: true, json: async () => null }
         } })
+        rt.sessionStorage.setItem("jib-sso:refreshToken", "refresh-token")
         await rt.load("services/apiSSOService").logoutSso(token)
-        assert.equal(sent.url, "http://localhost:4001/jib-sso/api/auth/logout")
-        assert.equal(sent.options.credentials, "include")
-        assert.equal(sent.options.method, "POST")
-        assert.equal(sent.options.body, "{}")
-        assert.equal(sent.options.headers.Authorization, token === "" || token === "invalid" || token === jwt(1) ? undefined : `Bearer ${token}`)
+        assert.equal(sent.length, 2)
+        assert.equal(sent[0].url, "http://localhost:4001/jib-sso/api/auth/logout")
+        assert.equal(sent[0].options.body, "{}")
+        assert.equal(sent[1].url, "https://sso.test/v1/logout")
+        assert.equal(sent[1].options.body, JSON.stringify({ refresh_token: "refresh-token" }))
+        for ( const request of sent ) {
+            assert.equal(request.options.credentials, "include")
+            assert.equal(request.options.method, "POST")
+            assert.equal(request.options.headers.Authorization, token === "" || token === "invalid" || token === jwt(1) ? undefined : `Bearer ${token}`)
+        }
     }
 })
 
-test("logout honors an explicit endpoint and surfaces network errors", async () => {
-    let destination
-    const rt = runtime({ environment: { NEXT_PUBLIC_SSO_LOGOUT_URL: "https://sso.test/custom/logout" }, fetcher: async url => {
-        destination = url
-        return { ok: false, status: 503, json: async () => null }
+test("logout without refresh uses empty bodies and waits for both endpoints before reporting failure", async () => {
+    let finishApi
+    const sent = []
+    const rt = runtime({ api: "https://sso.test/v1", environment: { NEXT_PUBLIC_SSO_LOGOUT_URL: "https://sso.test/custom/logout" }, fetcher: async (url, options) => {
+        sent.push({ url, options })
+        if ( url === "https://sso.test/v1/logout" ) await new Promise(resolve => { finishApi = resolve })
+        return { ok: url !== "https://sso.test/custom/logout", status: 503, json: async () => null }
     } })
-    await assert.rejects(rt.load("services/apiSSOService").logoutSso())
-    assert.equal(destination, "https://sso.test/custom/logout")
+    const service = rt.load("services/apiSSOService")
+    let hasFinished = false
+    const pending = assert.rejects(service.logoutSso()).then(() => { hasFinished = true })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(hasFinished, false)
+    assert.equal(service.getSsoLogoutState().isLoggingOut, true)
+    assert.equal(sent[0].url, "https://sso.test/custom/logout")
+    assert.ok(sent.every(request => request.options.body === "{}"))
+    finishApi()
+    await pending
+    assert.equal(service.getSsoLogoutState().isLoggingOut, false)
+})
+
+test("refresh completing after logout does not restore tokens or revoke a subsequent session", async () => {
+    let finishRefresh
+    let requestInterceptor
+    const requests = []
+    const axios = { default: {
+        create: () => ({ interceptors: {
+            request: { use: handler => { requestInterceptor = handler } },
+            response: { use: () => undefined },
+        } }),
+    } }
+    const rt = runtime({ api: "https://sso.test/v1", modules: { axios }, fetcher: async (url, options) => {
+        requests.push({ url, options })
+        if ( url.endsWith("/token/refresh") ) {
+            return { ok: true, json: () => new Promise(resolve => { finishRefresh = resolve }) }
+        }
+        return { ok: true, json: async () => null }
+    } })
+    rt.sessionStorage.setItem("jib-sso:accessToken", "expired-token")
+    rt.sessionStorage.setItem("jib-sso:refreshToken", "refresh-token")
+    const api = rt.load("services/apiServices")
+    const pending = assert.rejects(requestInterceptor({ headers: {} }))
+    await new Promise(resolve => setImmediate(resolve))
+    await api.logout()
+    assert.equal(rt.sessionStorage.getItem("jib-sso:accessToken"), null)
+    const store = rt.load("store/useAppStore").useAppStore
+    assert.equal(store.getState().hasLoggedOut, true)
+    store.getState().setSsoSession("subsequent-token", { sub: "new-user", permissions: [] }, "subsequent-refresh", 3600)
+    finishRefresh({ access_token: "late-token", refresh_token: "late-refresh", token_type: "Bearer" })
+    await pending
+    assert.equal(rt.sessionStorage.getItem("jib-sso:accessToken"), "subsequent-token")
+    assert.equal(rt.sessionStorage.getItem("jib-sso:refreshToken"), "subsequent-refresh")
+    assert.equal(requests.length, 3)
+})
+
+test("logout blocks requests and refresh while central logout is pending", async () => {
+    let finishLogout
+    let requestInterceptor
+    const axios = { default: { create: () => ({ interceptors: {
+        request: { use: handler => { requestInterceptor = handler } },
+        response: { use: () => undefined },
+    } }) } }
+    let calls = 0
+    const rt = runtime({ api: "https://sso.test/v1", modules: { axios }, fetcher: async url => {
+        calls++
+        if ( url.endsWith("/api/auth/logout") ) await new Promise(resolve => { finishLogout = resolve })
+        return { ok: true, json: async () => null }
+    } })
+    rt.sessionStorage.setItem("jib-sso:accessToken", "expired-token")
+    rt.sessionStorage.setItem("jib-sso:refreshToken", "refresh-token")
+    const api = rt.load("services/apiServices")
+    const pending = api.logout()
+    await assert.rejects(requestInterceptor({ headers: {} }), /Logout in progress/)
+    assert.equal(calls, 2)
+    finishLogout()
+    await pending
+    assert.equal(rt.sessionStorage.getItem("jib-sso:refreshToken"), null)
+})
+
+test("session verification completing after logout cannot restore the old user", async () => {
+    let finishUser
+    const rt = runtime({ fetcher: async () => ({ ok: true, json: () => new Promise(resolve => { finishUser = resolve }) }) })
+    rt.sessionStorage.setItem("jib-sso:accessToken", "old-token")
+    const store = rt.load("store/useAppStore").useAppStore
+    const pending = store.getState().initializeSession()
+    await new Promise(resolve => setImmediate(resolve))
+    store.getState().logout()
+    finishUser({ sub: "old-user", permissions: [] })
+    await pending
+    assert.equal(store.getState().accessToken, "")
+    assert.equal(store.getState().userDetail, null)
+    assert.equal(store.getState().hasLoggedOut, true)
+})
+
+
+test("permissions use exact actions and resource/global wildcards like Procon", () => {
+    const { hasPermission, PERMISSION_ACTIONS } = runtime().load("utils/permissions")
+    assert.equal(hasPermission([ "jobs.view" ], "jobs", "view"), true)
+    assert.equal(hasPermission([ "jobs.view" ], "jobs", "edit"), false)
+    assert.equal(hasPermission([ "jobs.*" ], "jobs", "approve"), true)
+    assert.equal(hasPermission([ "jobs.*" ], "other", "view"), false)
+    assert.equal(hasPermission([ "*" ], "other", "cancel"), true)
+    assert.equal(hasPermission([], "jobs", "view"), false)
+    assert.deepEqual(Array.from(PERMISSION_ACTIONS, ( action ) => action.key), [ "view", "create", "edit", "approve", "print", "cancel" ])
+})
+
+test("Sidebar removes unauthorized links and empty groups/sections; admin role grants nothing", () => {
+    const rt = runtime()
+    const { navSections } = rt.load("utils/links")
+    const { filterNavSections } = rt.load("utils/navigationPermissions")
+    const store = rt.load("store/useAppStore").useAppStore
+    store.getState().setSsoSession("opaque", { sub: "admin", system_role: "admin", permissions: [] }, undefined, 3600)
+    const visible = filterNavSections(navSections, store.getState().permissions)
+    const links = visible.flatMap(( section ) => section.groups.flatMap(( group ) => group.links))
+    assert.deepEqual(Array.from(links, ( link ) => link.url), [ "/dashboard" ])
+
+    const protectedLinks = navSections.flatMap(( section ) => section.groups.flatMap(( group ) => group.links))
+        .filter(( link ) => link.resource)
+    for ( const permitted of protectedLinks ) {
+        const filtered = filterNavSections(navSections, [ permitted.resource + ".view" ])
+        assert.ok(filtered.every(( section ) => section.groups.length && section.groups.every(( group ) => group.links.length)))
+        const urls = filtered.flatMap(( section ) => section.groups.flatMap(( group ) => group.links)).map(( link ) => link.url)
+        assert.ok(urls.includes(permitted.url))
+        assert.equal(urls.length, 2)
+        assert.equal(filterNavSections(navSections, [ permitted.resource + ".create" ]).length, 1)
+    }
+    assert.equal(filterNavSections(navSections, [ "*" ]).length, navSections.length)
+})
+
+test("route permissions match Sidebar and protect create/edit URLs without prefix collisions", () => {
+    const rt = runtime()
+    const { navSections } = rt.load("utils/links")
+    const { getRoutePermission } = rt.load("utils/navigationPermissions")
+    const links = navSections.flatMap(( section ) => section.groups.flatMap(( group ) => group.links))
+    for ( const link of links.filter(( item ) => item.resource) ) {
+        assert.equal(getRoutePermission(link.url).resource, link.resource)
+        assert.equal(getRoutePermission(link.url).action, "view")
+        assert.equal(getRoutePermission(link.url + "/create").action, "create")
+        assert.equal(getRoutePermission(link.url + "/123/edit").action, "edit")
+    }
+    assert.equal(getRoutePermission("/dashboard"), undefined)
+    assert.equal(getRoutePermission("/profile"), undefined)
+    assert.equal(getRoutePermission("/permissions"), undefined)
+    assert.equal(getRoutePermission("/users-other"), undefined)
+    const nested = links.find(( item ) => item.url === "/users/permissions")
+    if ( nested ) assert.equal(getRoutePermission(nested.url).resource, nested.resource)
+})
+
+test("SSO drops legacy menu objects and malformed permissions instead of granting access", async () => {
+    const rt = runtime({ api: "https://sso.example/api", fetcher: async () => ({
+        ok: true,
+        json: async () => ({ sub: "123", system_role: "admin", permissions: [ "users.view", { menu_id: 1, views: 1 }, null, 1 ] }),
+    }) })
+    const user = await rt.load("services/apiSSOService").getSsoUserInfo("opaque")
+    assert.deepEqual(user.permissions, [ "users.view" ])
+    const store = rt.load("store/useAppStore").useAppStore
+    store.getState().setSsoSession("opaque", user, undefined, 3600)
+    assert.deepEqual(store.getState().permissions, [ "users.view" ])
+    store.getState().logout()
+    assert.equal(store.getState().permissions.length, 0)
+})
+
+test("stored permissions are validated and the permission table includes unknown resources", () => {
+    const rt = runtime()
+    const { sessionStorageStore, storage } = rt.load("lib/storage")
+    const { getStoredPermissions, buildPermissionRows } = rt.load("utils/permissions")
+    storage.setItem("permissions", JSON.stringify([ "*" ]))
+    sessionStorageStore.setItem("permissions", JSON.stringify([ "custom.view", null, { menu_id: 1 } ]))
+    assert.deepEqual(Array.from(getStoredPermissions()), [ "custom.view" ])
+    const rows = buildPermissionRows(getStoredPermissions())
+    const custom = rows.find(( row ) => row.resource === "custom")
+    assert.equal(custom.view, true)
+    assert.equal(custom.edit, false)
+    sessionStorageStore.setItem("permissions", "invalid-json")
+    assert.equal(getStoredPermissions().length, 0)
+})
+
+test("login automatically starts SSO after successful logout and waits on logout errors or password changes", async () => {
+    for ( const query of [ "loggedOut=1", "logged_out=1", "loggedOut=1&logoutError=1", "logged_out=1&logoutError=1", "passwordChanged=1", "" ] ) {
+        let starts = 0
+        let initializations = 0
+        const shouldWait = query.includes("logoutError=1") || query.includes("passwordChanged=1")
+        const rt = runtime({ modules: {
+            react: {
+                useCallback: handler => handler,
+                useEffect: effect => effect(),
+                useRef: value => ({ current: value }),
+                useState: value => [ value, () => undefined ],
+            },
+            "next/navigation": {
+                useRouter: () => ({ replace: () => undefined }),
+                useSearchParams: () => new URLSearchParams(query),
+            },
+            "@/lib/sso": { getSafeReturnTo: value => value, beginSsoAuthorization: async () => { starts++ } },
+            "@/store/useAppStore": { useAppStore: { getState: () => ({ initializeSession: async () => { initializations++ }, accessToken: query.includes("logged") ? "stale-token" : "" }) } },
+            "../ui/button": { Button: "button" },
+            "../ui/card": { Card: "div", CardHeader: "header", CardTitle: "h1", CardDescription: "p", CardContent: "section" },
+        } })
+        const tree = rt.load("components/auth/Login").default()
+        await new Promise(resolve => setImmediate(resolve))
+        assert.equal(starts, shouldWait ? 0 : 1)
+        if ( query.includes("logged") ) assert.equal(initializations, 0)
+        if ( shouldWait ) {
+            const findButton = element => {
+                if ( !element || typeof element !== "object" ) return null
+                if ( element.type === "button" ) return element
+                const children = element.props?.children
+                for ( const child of Array.isArray(children) ? children : [ children ] ) {
+                    const found = findButton(child)
+                    if ( found ) return found
+                }
+                return null
+            }
+            const button = findButton(tree)
+            assert.ok(button)
+            button.props.onClick()
+            await new Promise(resolve => setImmediate(resolve))
+            assert.equal(starts, 1)
+        }
+    }
+})
+
+test("local SSO authorization and logout use the same host with cookie credentials", async () => {
+    const requests = []
+    const rt = runtime({
+        api: "https://sso.test/v1",
+        environment: {
+            NEXT_PUBLIC_SSO_BASE_URL: "http://localhost:4001/nexus-intralogin",
+            NEXT_PUBLIC_SSO_LOGOUT_URL: "http://localhost:4001/nexus-intralogin/api/auth/logout",
+        },
+        fetcher: async (url, options) => {
+            requests.push({ url, options })
+            return { ok: true, json: async () => null }
+        },
+    })
+    await rt.load("lib/sso").beginSsoAuthorization("/dashboard")
+    const authorizeUrl = new URL(rt.redirects[0])
+    assert.equal(authorizeUrl.origin + authorizeUrl.pathname, "http://localhost:4001/nexus-intralogin/authorize")
+    await rt.load("services/apiSSOService").logoutSso()
+    assert.equal(requests[0].url, "http://localhost:4001/nexus-intralogin/api/auth/logout")
+    assert.equal(requests[0].options.credentials, "include")
+    assert.equal(requests[1].url, "https://sso.test/v1/logout")
 })

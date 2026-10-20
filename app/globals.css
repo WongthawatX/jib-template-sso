@@ -2,6 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Ant Design theme overrides — แยกไฟล์ไว้ไม่ให้ปนกับ theme token ของโปรเจกต์
+   กฎข้างในไม่ได้อยู่ใน @layer ใดๆ จึงชนะทุก layer ของ tailwind เสมอ ไม่ขึ้นกับว่า import ตรงไหน */
+@import "./antd-overrides.css";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -158,4 +162,49 @@
 ::view-transition-old(root), ::view-transition-new(root) {
     animation: none;
     mix-blend-mode: normal;
+}
+
+[data-sonner-toast][data-type="warning"] [data-button][data-action] {
+    background-color: #c2410c !important;
+    color: #fff !important;
+    border: 1px solid color-mix(in srgb, #9a3412 55%, transparent) !important;
+}
+
+[data-sonner-toast][data-type="warning"] [data-button][data-action]:hover {
+    background-color: #9a3412 !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-button][data-action] {
+    background-color: #15803d !important;
+    color: #fff !important;
+    border: 1px solid color-mix(in srgb, #166534 50%, transparent) !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-button][data-action]:hover {
+    background-color: #166534 !important;
+}
+
+[data-sonner-toast][data-type="error"] [data-button][data-action] {
+    background-color: #b91c1c !important;
+    color: #fff !important;
+    border: 1px solid color-mix(in srgb, #991b1b 50%, transparent) !important;
+}
+
+[data-sonner-toast][data-type="error"] [data-button][data-action]:hover {
+    background-color: #991b1b !important;
+}
+
+[data-sonner-toast][data-type="info"] [data-button][data-action] {
+    background-color: #0369a1 !important;
+    color: #fff !important;
+    border: 1px solid color-mix(in srgb, #075985 50%, transparent) !important;
+}
+
+[data-sonner-toast][data-type="info"] [data-button][data-action]:hover {
+    background-color: #075985 !important;
+}
+
+[data-sonner-toast][data-type="loading"] [data-button][data-action] {
+    background-color: var(--muted-foreground) !important;
+    color: var(--background) !important;
 }

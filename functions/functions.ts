@@ -1,3 +1,7 @@
+import axios from "axios"
+
+import { ERROR_FALLBACKS } from "@/utils/messages"
+
 const THAI_WEEKDAYS_SHORT = [ "อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัส", "ศุกร์", "เสาร์" ]
 const THAI_WEEKDAYS_FULL = [ "อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์" ]
 const THAI_MONTHS_FULL = [ "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม" ]
@@ -7,6 +11,28 @@ const pad = ( value: number ): string => String(value).padStart(2, "0")
 /** คืนค่า YYYY-MM-DD ตามเวลาเครื่อง (ไม่ใช้ toISOString เพราะจะเป็น UTC) */
 export const formatDate = ( date: Date = new Date() ): string =>
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+
+/** คืนค่า dd/MM/yyyy (ค.ศ.) สำหรับแสดงผล */
+export const formatDateDMY = ( date: Date = new Date() ): string =>
+    `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`
+
+/**
+ * แปลงค่าวันที่จาก prop เป็น Date — รับได้ทั้ง Date, "YYYY-MM-DD" และ "dd/MM/yyyy"
+ * คืน undefined ถ้าแปลงไม่ได้ (อย่าคืน Invalid Date ออกไป เพราะจะไปพังที่ปลายทาง)
+ */
+export const parseDateValue = ( value?: Date | string | null ): Date | undefined => {
+    if ( !value ) return undefined
+    if ( value instanceof Date ) return Number.isNaN(value.getTime()) ? undefined : value
+
+    const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+    if ( iso ) return new Date( Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]) )
+
+    const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value)
+    if ( dmy ) return new Date( Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]) )
+
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed
+}
 
 /** คืนค่า HH:mm ตามเวลาเครื่อง */
 export const formatTime = ( date: Date = new Date() ): string =>
@@ -27,3 +53,30 @@ export const formatThaiDateLong = ( date: Date = new Date(), full: boolean = fal
 }
 
 export const isLinkActive = ( pathname: string, url: string ): boolean => pathname === url || pathname.startsWith(`${url}/`)
+
+export type GetErrorMessageOptions = {
+    fallback?: string;
+    forbidden?: string;
+    unauthorized?: string;
+}
+
+/** error ที่เกิดจากการยกเลิก request เอง (unmount / เปลี่ยนตัวกรอง) — ไม่ใช่ความผิดพลาดที่ต้องแจ้งผู้ใช้ */
+export const isRequestCanceled = ( error: unknown ): boolean => axios.isCancel(error)
+
+/** แปลง error (axios หรือ Error ทั่วไป) เป็นข้อความภาษาไทยสำหรับแสดงผล — ปรับข้อความเฉพาะงานได้ผ่าน options */
+export const getErrorMessage = ( error: unknown, options?: GetErrorMessageOptions ): string => {
+    const fallback = options?.fallback ?? ERROR_FALLBACKS.generic
+    const unauthorized = options?.unauthorized ?? ERROR_FALLBACKS.unauthorized
+    const forbidden = options?.forbidden ?? ERROR_FALLBACKS.forbidden
+
+    if ( axios.isAxiosError(error) ) {
+        const status = error.response?.status
+        if ( status === 401 ) return unauthorized
+        if ( status === 403 ) return forbidden
+        if ( status === 502 || status === 504 ) return ERROR_FALLBACKS.gateway
+        if ( status ) return `${fallback} (HTTP ${status})`
+        return error.message || ERROR_FALLBACKS.network
+    }
+
+    return error instanceof Error ? error.message : fallback
+}

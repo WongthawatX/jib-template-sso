@@ -10,6 +10,7 @@ import { Input } from "../ui/input"
 
 import { changeOwnSsoPassword, logoutSso } from "@/services/apiSSOService"
 import { useAppStore } from "@/store/useAppStore"
+import { AUTH_MESSAGES } from "@/utils/messages"
 
 import type { FormEvent } from "react"
 
@@ -50,7 +51,7 @@ export default function ChangePasswordDialog({ open, onOpenChange }: Props) {
         setIsConfirmationInvalid(false)
 
         if ( !accessToken ) {
-            setErrorMessage("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่")
+            setErrorMessage(AUTH_MESSAGES.SESSION_EXPIRED)
             return
         }
         if ( newPassword !== confirmPassword ) {
@@ -76,7 +77,7 @@ export default function ChangePasswordDialog({ open, onOpenChange }: Props) {
             logout()
             router.replace(`/login?passwordChanged=1${hasLogoutError ? "&logoutError=1" : ""}`)
         } catch ( error ) {
-            setErrorMessage(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาลองอีกครั้ง")
+            setErrorMessage(error instanceof Error ? error.message : AUTH_MESSAGES.PASSWORD_CHANGE_FAILED)
         } finally {
             setIsLoading(false)
         }

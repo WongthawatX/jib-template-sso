@@ -1,4 +1,7 @@
+import { AntdRegistry } from "@ant-design/nextjs-registry"
+
 import { Kanit } from "next/font/google"
+
 import { Providers } from "@/components/layout"
 import { cn } from "@/lib/utils"
 
@@ -14,8 +17,8 @@ const kanit = Kanit({
 })
 
 export const metadata: Metadata = {
-    title: "JIB ONSITE SERVICE",
-    description: "JIB Onsite Service · ระบบงาน Onsite Service",
+    title: "JIB Intranet Template",
+    description: "JIB Intranet · Single Sign-On",
     referrer: "no-referrer",
 }
 
@@ -23,7 +26,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     return (
         <html lang="th" suppressHydrationWarning className={cn(kanit.variable, "h-full antialiased")}>
             <body className="flex min-h-full flex-col">
-                <Providers>{ children }</Providers>
+                <Providers>
+                    <AntdRegistry> { children } </AntdRegistry>
+                </Providers>
             </body>
         </html>
     )

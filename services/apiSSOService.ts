@@ -2,6 +2,9 @@ import { jwtDecode } from "jwt-decode"
 
 import { DEV_AUTH_BYPASS, env } from "@/config/env"
 import { path } from "@/services/constants"
+import { sessionStorageStore } from "@/lib/storage"
+
+import { normalizePermissions } from "@/utils/permissions"
 
 import type { Permission } from "@/utils/permissions"
 
@@ -70,17 +73,6 @@ export type ChangeOwnPasswordResult = {
 
 const isRecord = ( value: unknown ): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
-
-const isPermission = ( value: unknown ): value is Permission =>
-    ( typeof value === "string" && value.length > 0 ) ||
-    ( isRecord(value) &&
-        typeof value.menu_id === "number" &&
-        typeof value.views === "number" &&
-        typeof value.creates === "number" &&
-        typeof value.edits === "number" &&
-        typeof value.deletes === "number" &&
-        typeof value.approves === "number" &&
-        typeof value.printed === "number" )
 
 const readOptionalString = ( data: Record<string, unknown>, key: string ): string | undefined =>
     typeof data[key] === "string" ? data[key] : undefined
@@ -222,26 +214,49 @@ export const getSsoUserInfo = async ( accessToken: string ): Promise<SsoUserInfo
         branch: readOptionalString(response.data, "branch"),
         system_role: readOptionalString(response.data, "system_role"),
         roles: Array.isArray(response.data.roles) ? response.data.roles.filter(( role ): role is string => typeof role === "string") : [],
-        permissions: Array.isArray(response.data.permissions) ? response.data.permissions.filter(isPermission) : [],
+        permissions: normalizePermissions(response.data.permissions),
     }
 }
 
+let logoutGeneration = 0
+let ssoLogoutPromise: Promise<void> | null = null
+
+export const getSsoLogoutState = (): { isLoggingOut: boolean; generation: number } => ({
+    isLoggingOut: ssoLogoutPromise !== null,
+    generation: logoutGeneration,
+})
+
 export const logoutSso = async ( accessToken = "" ): Promise<void> => {
     if ( DEV_AUTH_BYPASS ) return
+    if ( ssoLogoutPromise ) return ssoLogoutPromise
+    logoutGeneration += 1
+    const refreshToken = sessionStorageStore.getItem("refreshToken")
     let canSendToken = false
     try {
         const { exp } = jwtDecode<{ exp?: number }>(accessToken)
         canSendToken = typeof exp === "number" && Number.isFinite(exp) && exp > Date.now() / 1000
     } catch {
-        // The central session cookie can log out even without a valid JWT.
+        // Cookie and refresh-token revocation also work without a valid JWT.
     }
-    await request(env.SSO_LOGOUT_URL, {
+    const options: RequestInit = {
         method: "POST",
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
             ...(canSendToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({}),
-    })
+    }
+    // The login host owns the cookie; the API owns the client's refresh-token family.
+    ssoLogoutPromise = Promise.allSettled([
+        request(path.SSO_FRONTEND_LOGOUT, { ...options, body: JSON.stringify({}) }),
+        request(path.SSO_LOGOUT, {
+            ...options,
+            body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+        }),
+    ]).then(( results ) => {
+        for ( const result of results ) {
+            if ( result.status === "rejected" ) throw result.reason
+        }
+    }).finally(() => { ssoLogoutPromise = null })
+    return ssoLogoutPromise
 }

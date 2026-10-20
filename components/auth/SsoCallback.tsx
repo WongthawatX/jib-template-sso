@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { clearSsoAuthorization, readSsoCallback } from "@/lib/sso"
 import { exchangeSsoAuthorizationCode, getSsoUserInfo } from "@/services/apiSSOService"
 import { useAppStore } from "@/store/useAppStore"
+import { AUTH_MESSAGES } from "@/utils/messages"
 
 type CallbackStatus = "loading" | "error"
 
@@ -43,7 +44,7 @@ export default function SsoCallbackPage() {
                 router.replace(authorization.returnTo)
             } catch ( error ) {
                 clearSsoAuthorization()
-                setErrorMessage(error instanceof Error ? error.message : "ไม่สามารถเข้าสู่ระบบได้ กรุณาเริ่มใหม่")
+                setErrorMessage(error instanceof Error ? error.message : AUTH_MESSAGES.SSO_LOGIN_FAILED)
                 setStatus("error")
             }
         }
@@ -66,11 +67,11 @@ export default function SsoCallbackPage() {
                             : <ShieldCheck aria-hidden="true" /> }
                     </div>
                     <CardTitle>
-                        { status === "loading" ? "กำลังตรวจสอบ JIB SSO" : "เข้าสู่ระบบไม่สำเร็จ" }
+                        { status === "loading" ? AUTH_MESSAGES.CALLBACK_CHECKING_TITLE : AUTH_MESSAGES.LOGIN_FAILED_TITLE }
                     </CardTitle>
                     <CardDescription aria-live="polite">
                         { status === "loading"
-                            ? "กรุณารอสักครู่ ระบบกำลังแลก Authorization Code และโหลดข้อมูลผู้ใช้"
+                            ? AUTH_MESSAGES.CALLBACK_CHECKING_HINT
                             : errorMessage }
                     </CardDescription>
                 </CardHeader>

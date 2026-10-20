@@ -1,11 +1,9 @@
 "use client"
 
 import { AtSignIcon, BadgeCheckIcon, Building2Icon, IdCardIcon, MailIcon, PhoneIcon, ShieldCheckIcon, StoreIcon, UserIcon } from "lucide-react"
-
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 import { Skeleton } from "../ui/skeleton"
-
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/store/useAppStore"
 
@@ -19,8 +17,7 @@ type ProfileFieldProps = {
 
 const FIELD_ROW_CLASS = "flex min-w-0 flex-col gap-1 border-t border-border/60 py-3 first:border-t-0 sm:[&:nth-child(2)]:border-t-0 uppercase"
 
-const getInitials = ( name: string ): string =>
-    name.trim().split(/\s+/).slice(0, 2).map(( part ) => part.charAt(0)).join("").toUpperCase()
+const getInitials = ( name: string ): string => name.trim().split(/\s+/).slice(0, 2).map(( part ) => part.charAt(0)).join("").toUpperCase()
 
 function ProfileField({ label, value, icon: Icon }: ProfileFieldProps) {
     return (

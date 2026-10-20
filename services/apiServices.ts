@@ -6,7 +6,7 @@ import { jwtDecode } from "jwt-decode"
 import { BASE_API_URL, BASE_API_URL_UPLOAD, path } from "./constants";
 import { getStoredAccessToken, sessionStorageStore, storage } from "@/lib/storage"
 // import { cleanParams } from "@/functions/functions"
-import { logoutSso, refreshSsoToken } from "./apiSSOService"
+import { getSsoLogoutState, logoutSso, refreshSsoToken } from "./apiSSOService"
 
 export const isTokenExpired = ( token: string ): boolean => {
     if ( !token ) return true;
@@ -24,8 +24,7 @@ const authAPI = axios.create({ baseURL: BASE_API_URL });
 const uploadAPI = axios.create({ baseURL: BASE_API_URL_UPLOAD })
 
 const redirectToLogin = () => {
-    storage.clear()
-    sessionStorageStore.clear()
+    useAppStore.getState().logout()
     window.location.replace(new URL(`${APP_BASE_PATH}/login?loggedOut=1`, window.location.origin).toString())
 }
 
@@ -35,11 +34,20 @@ const requestSsoLogout = (): Promise<void> => logoutSso(getStoredAccessToken() ?
 let ssoRefreshPromise: Promise<string | null> | null = null
 
 const runSsoRefresh = async (): Promise<string | null> => {
+    const { isLoggingOut, generation } = getSsoLogoutState()
+    if ( isLoggingOut ) return null
+    const accessToken = getStoredAccessToken()
     const refreshToken = sessionStorageStore.getItem("refreshToken")
     if ( !refreshToken ) return null
 
     try {
         const result = await refreshSsoToken( refreshToken )
+
+        const currentLogout = getSsoLogoutState()
+        if (
+            currentLogout.isLoggingOut || currentLogout.generation !== generation ||
+            getStoredAccessToken() !== accessToken || sessionStorageStore.getItem("refreshToken") !== refreshToken
+        ) return null
 
         const user = useAppStore.getState().userDetail
         if ( user ) useAppStore.getState().setSsoSession(result.access_token, user, result.refresh_token ?? refreshToken, result.expires_in)
@@ -61,77 +69,64 @@ const ensureFreshSsoToken = (): Promise<string | null> => {
     return ssoRefreshPromise
 }
 
-export const createSsoApiClient = ( baseURL: string ) => {
-    const client = axios.create({ baseURL, timeout: 15000 })
-    attachSsoInterceptors(client)
-    return client
-}
+authAPI.interceptors.request.use(async (config) => {
+    const logoutState = getSsoLogoutState()
+    if ( logoutState.isLoggingOut ) return Promise.reject(new Error("Logout in progress"))
+    let token = getStoredAccessToken()
 
-const attachSsoInterceptors = ( client: ReturnType<typeof axios.create> ): void => {
-    client.interceptors.request.use(async (config) => {
-        let token = getStoredAccessToken()
+    if ( token && isTokenExpired( token ) ) {
+        const refreshed = await ensureFreshSsoToken()
+        if ( getSsoLogoutState().generation !== logoutState.generation ) {
+            return Promise.reject(new Error("Session changed during refresh"))
+        }
 
-        if ( token && isTokenExpired( token ) ) {
+        if ( refreshed ) {
+            token = refreshed
+        } else {
+            // ไม่มี refresh token หรือ refresh ไม่สำเร็จ → logout
+            void requestSsoLogout().catch(() => undefined).finally(redirectToLogin)
+
+            return Promise.reject(new Error("Token expired"))
+        }
+    }
+
+    if ( token ) config.headers['Authorization'] = `Bearer ${token}`
+
+    return config
+})
+
+authAPI.interceptors.response.use(
+    ( response ) => response,
+    async ( error: unknown ) => {
+        const logoutState = getSsoLogoutState()
+            if ( logoutState.isLoggingOut ) return Promise.reject(error)
+            if ( !axios.isAxiosError(error) ) return Promise.reject(error)
+        const originalRequest = error.config as (typeof error.config & { _retry?: boolean })
+
+        if ( error.response?.status === 401 && originalRequest && !originalRequest._retry ) {
+            originalRequest._retry = true
+
+            // ลอง refresh แล้วยิงซ้ำหนึ่งครั้ง
             const refreshed = await ensureFreshSsoToken()
+                if ( getSsoLogoutState().generation !== logoutState.generation ) return Promise.reject(error)
 
             if ( refreshed ) {
-                token = refreshed
-            } else {
-                // ไม่มี refresh token หรือ refresh ไม่สำเร็จ → logout
-                void requestSsoLogout().catch(() => undefined).finally(redirectToLogin)
+                originalRequest.headers['Authorization'] = `Bearer ${refreshed}`
 
-                return Promise.reject(new Error("Token expired"))
-            }
-        }
-
-        if ( token ) config.headers['Authorization'] = `Bearer ${token}`
-
-        return config
-    })
-
-    client.interceptors.response.use(
-        ( response ) => response,
-        async ( error: unknown ) => {
-            if ( !axios.isAxiosError(error) ) return Promise.reject(error)
-            const originalRequest = error.config as (typeof error.config & { _retry?: boolean })
-
-            if ( error.response?.status === 401 && originalRequest && !originalRequest._retry ) {
-                originalRequest._retry = true
-
-                // ลอง refresh แล้วยิงซ้ำหนึ่งครั้ง
-                const refreshed = await ensureFreshSsoToken()
-
-                if ( refreshed ) {
-                    originalRequest.headers['Authorization'] = `Bearer ${refreshed}`
-
-                    return client( originalRequest )
-                }
-
-                storage.removeItem("accessToken")
-                redirectToLogin()
+                return authAPI( originalRequest )
             }
 
-            return Promise.reject(error)
+            storage.removeItem("accessToken")
+            redirectToLogin()
         }
-    )
-}
 
-attachSsoInterceptors(authAPI)
+        return Promise.reject(error)
+    }
+)
 
 export const logout = async (): Promise<void> => {
-    try {
-        const accessToken = getStoredAccessToken()
-        if ( accessToken && isTokenExpired( accessToken ) ) await ensureFreshSsoToken()
-
-        const response = await requestSsoLogout()
-
-        storage.clear()
-        sessionStorageStore.clear()
-
-        return response
-    } catch (error) {
-        throw error
-    }
+    await requestSsoLogout()
+    useAppStore.getState().logout()
 }
 
 ////////////////////////////// POST //////////////////////////////
