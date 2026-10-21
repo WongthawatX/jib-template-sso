@@ -59,12 +59,10 @@ app/
 ├── (auth)/auth/callback/      # รับ code จาก SSO แล้วแลก token
 ├── (protected)/               # ครอบด้วย SessionGuard → AppShell → RequirePermission
 │   ├── dashboard/
-│   ├── job-admin/
 │   ├── permissions/           # ตารางสิทธิ์ของผู้ใช้ที่ login
 │   ├── profile/
 │   ├── table-demo/
 │   └── [...slug]/             # placeholder สำหรับเมนูใน utils/links.ts ที่ยังไม่มีหน้าจริง
-├── api/legacy-onsite/[...path]/   # route handler ของ proxy API ระบบเดิม (dev only)
 ├── layout.tsx                 # Root layout (font Kanit, Providers, AntdRegistry)
 ├── globals.css                # Tailwind v4 + theme token
 └── antd-overrides.css
@@ -84,8 +82,8 @@ config/env.ts     รวมการอ่าน environment variable ทุก�
 functions/        ฟังก์ชัน pure (format วันที่, เช็ก active link)
 hooks/            use-mobile, usePermission, useTableScrollHeight, useVisibleNavSections
 lib/              sso.ts (PKCE), storage.ts (wrapper storage แบบมี namespace), utils.ts (cn)
-services/         รวม API call ทุกตัว — ห้าม fetch กระจายใน component
-store/            useAppStore (session + permissions), useLegacyOnsiteStore (dev only)
+services/         apiServices (axios + refresh token), apiSSOService (OIDC), constants — ห้าม fetch กระจายใน component
+store/            useAppStore — session + permissions
 utils/            links (เมนู sidebar), messages, permissions, navigationPermissions
 tests/            unit test รันด้วย node --test
 proxy.ts          redirect "/" ที่อยู่นอก basePath เข้า basePath
@@ -107,10 +105,8 @@ proxy.ts          redirect "/" ที่อยู่นอก basePath เข้
 | `NEXT_PUBLIC_SSO_REDIRECT_URI` | – | ดีฟอลต์ `{BASE_PATH}/auth/callback` |
 | `NEXT_PUBLIC_SSO_APP_NAME` | – | ดีฟอลต์ `template` |
 | `NEXT_PUBLIC_SSO_SCOPE` | – | ดีฟอลต์ `openid profile` |
-| `NEXT_PUBLIC_ONSITE_API_BASE_URL` | – | ดีฟอลต์ `{API_URL}/api-onsite/api/v1` |
 | `NEXT_DEV_ALLOWED_ORIGINS` | – | dev เท่านั้น — host ที่ยิงเข้า dev server ได้ (คั่นด้วย comma) |
 | `NEXT_PUBLIC_DEV_AUTH_BYPASS` | – | **dev เท่านั้น** ดูหัวข้อถัดไป |
-| `NEXT_PUBLIC_ONSITE_API_AUTH_MODE` | – | **dev เท่านั้น** ดูหัวข้อถัดไป |
 
 `NEXT_PUBLIC_APP_VERSION` / `NEXT_PUBLIC_APP_ENV` ถูกตั้งไว้ใน `.env.*` แต่ยังไม่มีโค้ดอ้างถึง
 
@@ -118,12 +114,9 @@ proxy.ts          redirect "/" ที่อยู่นอก basePath เข้
 
 ## สวิตช์สำหรับงาน dev
 
-ทั้งสองตัวล็อกไว้ว่าทำงานเฉพาะตอนไม่ใช่ production build
+**`NEXT_PUBLIC_DEV_AUTH_BYPASS=true`** — ข้าม SSO แล้ว seed session ปลอม (สิทธิ์ `*`) ให้ทันที ใช้ตอนต่อ SSO ไม่ได้แต่อยากดู layout ภายใน ล็อกไว้สองชั้น (`NODE_ENV` + flag) จึงเปิดใน production build ไม่ได้
 
-**`NEXT_PUBLIC_DEV_AUTH_BYPASS=true`** — ข้าม SSO แล้ว seed session ปลอม (สิทธิ์ `*`) ให้ทันที ใช้ตอนต่อ SSO ไม่ได้แต่อยากดู layout ภายใน
 ปิดกลับเป็น `false` แล้วควร **ล้าง session storage ของ origin นั้นด้วย** ไม่งั้น token ปลอมที่ค้างอยู่จะถูกเอาไปยิง `/userinfo` จริงแล้วโดนปฏิเสธ
-
-**`NEXT_PUBLIC_ONSITE_API_AUTH_MODE=legacy`** — ให้ `onsiteAPI` ยิงผ่าน route handler `app/api/legacy-onsite/[...path]/` แทนการใช้ token ของ SSO โดยใส่ token ของระบบ Onsite เดิมเองในหน้าข้อมูลผู้ใช้ (เก็บใน `useLegacyOnsiteStore`) ตัว proxy จำกัดไว้แน่น: เฉพาะ resource ใน allow-list, บล็อค cross-origin, ไม่ตาม redirect, timeout 12 วินาที และบังคับว่า `NEXT_PUBLIC_ONSITE_API_BASE_URL` ต้องเป็น URL ของ API เดิมเท่านั้น
 
 ## Auth / SSO flow
 
