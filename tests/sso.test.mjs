@@ -465,11 +465,10 @@ test("stored permissions are validated and the permission table includes unknown
     assert.equal(getStoredPermissions().length, 0)
 })
 
-test("login automatically starts SSO after successful logout and waits on logout errors or password changes", async () => {
+test("login shows an SSO button and starts authorization only after the user clicks it", async () => {
     for ( const query of [ "loggedOut=1", "logged_out=1", "loggedOut=1&logoutError=1", "logged_out=1&logoutError=1", "passwordChanged=1", "" ] ) {
         let starts = 0
         let initializations = 0
-        const shouldWait = query.includes("logoutError=1") || query.includes("passwordChanged=1")
         const rt = runtime({ modules: {
             react: {
                 useCallback: handler => handler,
@@ -482,31 +481,42 @@ test("login automatically starts SSO after successful logout and waits on logout
                 useSearchParams: () => new URLSearchParams(query),
             },
             "@/lib/sso": { getSafeReturnTo: value => value, beginSsoAuthorization: async () => { starts++ } },
-            "@/store/useAppStore": { useAppStore: { getState: () => ({ initializeSession: async () => { initializations++ }, accessToken: query.includes("logged") ? "stale-token" : "" }) } },
+            "@/store/useAppStore": { useAppStore: { getState: () => ({ initializeSession: async () => { initializations++ }, accessToken: "" }) } },
+            "@/components/background": { LoginBackground: "background" },
             "../ui/button": { Button: "button" },
             "../ui/card": { Card: "div", CardHeader: "header", CardTitle: "h1", CardDescription: "p", CardContent: "section" },
         } })
         const tree = rt.load("components/auth/Login").default()
         await new Promise(resolve => setImmediate(resolve))
-        assert.equal(starts, shouldWait ? 0 : 1)
-        if ( query.includes("logged") ) assert.equal(initializations, 0)
-        if ( shouldWait ) {
-            const findButton = element => {
-                if ( !element || typeof element !== "object" ) return null
-                if ( element.type === "button" ) return element
-                const children = element.props?.children
-                for ( const child of Array.isArray(children) ? children : [ children ] ) {
-                    const found = findButton(child)
-                    if ( found ) return found
-                }
-                return null
+        assert.equal(starts, 0)
+        assert.equal(initializations, 0)
+        const findButton = element => {
+            if ( !element || typeof element !== "object" ) return null
+            if ( element.type === "button" ) return element
+            const children = element.props?.children
+            for ( const child of Array.isArray(children) ? children : [ children ] ) {
+                const found = findButton(child)
+                if ( found ) return found
             }
-            const button = findButton(tree)
-            assert.ok(button)
-            button.props.onClick()
-            await new Promise(resolve => setImmediate(resolve))
-            assert.equal(starts, 1)
+            return null
         }
+        const findElement = ( element, type ) => {
+            if ( !element || typeof element !== "object" ) return null
+            if ( element.type === type ) return element
+            const children = element.props?.children
+            for ( const child of Array.isArray(children) ? children : [ children ] ) {
+                const found = findElement(child, type)
+                if ( found ) return found
+            }
+            return null
+        }
+        const button = findButton(tree)
+        assert.ok(button)
+        assert.ok(findElement(tree, "background"))
+        button.props.onClick()
+        await new Promise(resolve => setImmediate(resolve))
+        assert.equal(starts, 1)
+        assert.equal(initializations, query.includes("logged") || query.includes("passwordChanged") ? 0 : 1)
     }
 })
 

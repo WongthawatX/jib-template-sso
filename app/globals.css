@@ -208,3 +208,37 @@
     background-color: var(--muted-foreground) !important;
     color: var(--background) !important;
 }
+@theme {
+    --animate-aurora: aurora-drift 22s ease-in-out infinite alternate;
+    --animate-beam: beam-sweep 18s ease-in-out infinite;
+    --animate-grid-pan: grid-pan 32s linear infinite;
+    --animate-float-up: float-up 18s linear infinite;
+    --animate-login-enter: login-enter 750ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+    @keyframes aurora-drift {
+        0% { transform: translate3d(-2%, 0, 0) scale(1); }
+        100% { transform: translate3d(3%, 4%, 0) scale(1.12); }
+    }
+
+    @keyframes beam-sweep {
+        0% { transform: translate3d(-70%, 0, 0) rotate(20deg); opacity: 0; }
+        35%, 70% { opacity: 0.35; }
+        100% { transform: translate3d(130%, 0, 0) rotate(20deg); opacity: 0; }
+    }
+
+    @keyframes grid-pan {
+        0% { background-position: 0 0, 0 0; }
+        100% { background-position: 40px 40px, 40px 40px; }
+    }
+
+    @keyframes float-up {
+        0% { transform: translate3d(0, 0, 0) scale(0.7); opacity: 0; }
+        15% { opacity: 0.75; }
+        100% { transform: translate3d(12px, -115vh, 0) scale(1.15); opacity: 0; }
+    }
+
+    @keyframes login-enter {
+        0% { transform: translate3d(0, 18px, 0) scale(0.985); opacity: 0; }
+        100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+    }
+}

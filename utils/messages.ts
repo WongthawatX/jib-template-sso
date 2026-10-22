@@ -12,7 +12,7 @@ export const AUTH_MESSAGES = {
     SSO_CONNECT_FAILED: "ไม่สามารถเชื่อมต่อ JIB SSO ได้ กรุณาลองอีกครั้ง",
     SSO_LOGIN_FAILED: "ไม่สามารถเข้าสู่ระบบได้ กรุณาเริ่มใหม่",
     LOGIN_FAILED_TITLE: "เข้าสู่ระบบไม่สำเร็จ",
-    LOGIN_REDIRECT_TITLE: "กำลังไปยัง JIB SSO",
+    LOGIN_REDIRECT_TITLE: "ยินดีต้อนรับ",
     LOGIN_HINT: "เข้าสู่ระบบด้วยบัญชีพนักงานผ่าน JIB SSO",
     LOGOUT_DONE_TITLE: "ออกจากระบบแล้ว",
     LOGOUT_SSO_FAILED: "ล้างเซสชันในแอปแล้ว แต่ไม่สามารถออกจากระบบ SSO กลางได้ กรุณาลองอีกครั้งภายหลัง",
